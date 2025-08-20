@@ -1,0 +1,71 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: Development artifact
+
+concurrency:
+  group: build
+  cancel-in-progress: false
+
+on:
+  push:
+    branches:
+      - 'main'
+      - 'feat/*'
+    tags:
+      - '!**'
+  pull_request:
+    branches: [ "main" ]
+
+env:
+  DOTNET_VERSION: '8.0.411'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Dotnet cache
+        id: cache-dotnet-core
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.dotnet
+          key: ${{ runner.os }}-dotnet
+          restore-keys: |
+            ${{ runner.os }}-dotnet
+
+      - name: NuGet cache
+        id: cache-nuget
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Setup .NET
+        if: ${{ steps.cache-dotnet-core.outputs.cache-hit != 'true' }}
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore packages
+        if: ${{ steps.cache-nuget.outputs.cache-hit != 'true' }}
+        run: nuget restore ./ERMaterialConvertTool.sln -LockedMode
+
+      - name: Publish application
+        run: |
+          cd ERMaterialConvertTool
+          dotnet publish -c Release --no-restore
+
+      # Upload the MSIX package: https://github.com/marketplace/actions/upload-a-build-artifact
+      - name: Upload build artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'ERMaterialConvertTool-SHA${{ github.sha }}'
+          path: './bin/publish'

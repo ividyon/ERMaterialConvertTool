@@ -1,0 +1,83 @@
+# This workflow will build a .NET project
+# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-net
+
+name: New release
+
+concurrency:
+  group: build
+  cancel-in-progress: true
+
+on:
+  push:
+    tags:
+      - '*'
+
+permissions:
+  contents: write
+
+env:
+  DOTNET_VERSION: '8.0.411'
+  NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          submodules: 'true'
+
+      - name: Setup cache
+        uses: actions/cache@v3
+        with:
+          path: ${{ github.workspace }}/.nuget/packages
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-nuget-
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: Restore packages
+        run: nuget restore ./ERMaterialConvertTool.sln -LockedMode
+
+      - name: Publish application
+        run: |
+          cd ERMaterialConvertTool
+          dotnet publish -c Release --no-restore
+
+      - name: Archive release
+        uses: thedoctor0/zip-release@main
+        with:
+          type: 'zip'
+          filename: '../../ERMaterialConvertTool-${{ github.ref_name }}.zip'
+          directory: './bin/publish'
+          path: '.'
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: 'ERMaterialConvertTool-SHA${{ github.sha }}'
+          path: ERMaterialConvertTool-${{ github.ref_name }}.zip
+
+  release:
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Download artifact
+        uses: actions/download-artifact@v4
+        with:
+          pattern: ERMaterialConvertTool-SHA*
+
+      - name: Upload Release
+        uses: ncipollo/release-action@v1
+        with:
+          artifacts: 'ERMaterialConvertTool-SHA${{ github.sha }}\ERMaterialConvertTool-${{ github.ref_name }}.zip'
+          bodyFile: "./NOTES.md"
+          token: ${{ secrets.GITHUB_TOKEN }}
