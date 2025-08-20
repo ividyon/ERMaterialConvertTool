@@ -16,7 +16,7 @@ permissions:
   contents: write
 
 env:
-  DOTNET_VERSION: '8.0.411'
+  DOTNET_VERSION: '9.0.301'
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
 
 jobs:
