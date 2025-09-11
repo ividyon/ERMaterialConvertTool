@@ -21,6 +21,10 @@ ERMaterialConvertTool is built using the following licensed works:
 
 ## Changelog
 
+### 1.0.0.1
+* 
+* Fixed an issue with material indices missing on pre-ELDEN RING FLVERs.
+
 ### 1.0.0.0
 
 * Initial release.

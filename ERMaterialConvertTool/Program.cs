@@ -118,6 +118,8 @@ class Program
                 gxList.AddRange(matInfoBank.GetDefaultGXItemsForMTD(matDef.MTD));
                 flver.GXLists.Add(gxList);
                 flverMaterial.MTD = matDef.MTD;
+                if (isPreEldenRing)
+                    flverMaterial.Index = matIndex;
                 flverMaterial.GXIndex = flver.GXLists.IndexOf(gxList);
 
                 flverMaterial.Textures =
