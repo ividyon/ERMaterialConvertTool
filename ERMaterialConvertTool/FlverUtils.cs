@@ -1,7 +1,10 @@
-﻿using System.Numerics;
+﻿using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Numerics;
 using SoulsFormats;
 
-namespace ERMaterialSwapTool;
+namespace ERMaterialConvertTool;
 
 public static class FlverUtils
 {

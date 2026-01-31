@@ -1,11 +1,16 @@
-﻿using System.ComponentModel.DataAnnotations;
+﻿using System;
+using System.Collections.Generic;
+using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Globalization;
+using System.IO;
+using System.Linq;
+using System.Threading;
 using PPlus;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
-namespace ERMaterialSwapTool;
+namespace ERMaterialConvertTool;
 
 class Program
 {
@@ -16,6 +21,13 @@ class Program
 
         [Display(Name = "Swap a material for another")]
         MaterialSwap,
+    }
+
+    private enum MTDDecision
+    {
+        UseNewMTD,
+        KeepOldMTD,
+        CustomName,
     }
 
     public static bool IsDebug()
@@ -65,9 +77,11 @@ class Program
         string matInfoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SapResources",
             "FLVER2MaterialInfoBank", "BankER.xml");
         var matInfoBank = FLVER2MaterialInfoBank.ReadFromXML(matInfoPath);
+        matInfoBank.MaterialDefs = matInfoBank.MaterialDefs.OrderBy(a => a.Value.MTD).ToDictionary();
 
         bool changesMade = false;
         bool exitAndSave = false;
+        var mtdDecisionKeep = (MTDDecision)0;
         if (mode == Mode.ConvertFlver)
         {
             PromptPlus.WriteLine("Preparing FLVER...");
@@ -85,12 +99,14 @@ class Program
             {
                 PromptPlus.WriteLine("FLVER is from Nightreign; changing some header values.");
                 flver.Header.Unk68 = 4;
+                flver.Header.Unk74 = 0;
             }
 
             flver.BufferLayouts = new();
             flver.GXLists = new();
 
             Dictionary<string, FLVER2MaterialInfoBank.MaterialDef> mapping = new();
+            Dictionary<string, MTDDecision> mtdDecisionMapping = new();
             PromptPlus.WriteLine(
                 $"Materials:\n{string.Join("\n", flver.Materials.Select(a => $"#{flver.Materials.IndexOf(a)}: {a.Name} ({a.MTD}) Index {a.Index}"))}\n");
             foreach (string mtd in flver.Materials.Select(a => Path.GetFileNameWithoutExtension(a.MTD).ToLower())
@@ -98,11 +114,18 @@ class Program
             {
                 var select = PromptPlus.Select<FLVER2MaterialInfoBank.MaterialDef>($"Select ER material to map to {mtd}")
                     .TextSelector(a => $"{a.MTD} ({a.Shader})")
-                    .AddItems(matInfoBank.MaterialDefs.Values);
+                    .AddItems(matInfoBank.MaterialDefs.Values.OrderBy(v => v.MTD.ToLower() == mtd));
 
                 var selectPrompt = select.Run();
 
                 mapping[mtd] = selectPrompt.Value;
+
+                var mtdDecisionPrompt = PromptPlus.Select<MTDDecision>("What to do about the material name in the mesh?")
+                    .Default(mtdDecisionKeep)
+                    .Run();
+                if (mtdDecisionPrompt.IsAborted) break;
+                mtdDecisionMapping[mtd] = mtdDecisionPrompt.Value;
+                mtdDecisionKeep = mtdDecisionPrompt.Value;
             }
 
             foreach (FLVER2.Material flverMaterial in flver.Materials)
@@ -116,8 +139,29 @@ class Program
 
                 FLVER2.GXList gxList = new();
                 gxList.AddRange(matInfoBank.GetDefaultGXItemsForMTD(matDef.MTD));
+
                 flver.GXLists.Add(gxList);
-                flverMaterial.MTD = matDef.MTD;
+                switch (mtdDecisionMapping[matName])
+                {
+                    case MTDDecision.UseNewMTD:
+                        flverMaterial.MTD = matDef.MTD;
+                        break;
+                    case MTDDecision.KeepOldMTD:
+                        break;
+                    case MTDDecision.CustomName:
+                        var mtdInput = PromptPlus
+                            .Input("Input new material name for the mesh (.matxml will be appended)").Run();
+                        if (mtdInput.IsAborted)
+                        {
+                            flverMaterial.MTD = matDef.MTD;
+                            break;
+                        }
+
+                        flverMaterial.MTD = mtdInput.Value;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
                 if (isPreEldenRing)
                     flverMaterial.Index = matIndex;
                 flverMaterial.GXIndex = flver.GXLists.IndexOf(gxList);
@@ -181,21 +225,48 @@ class Program
                     .Run();
                 if (matSelect.IsAborted) break;
                 var material = matSelect.Value;
+                var mtd = Path.GetFileNameWithoutExtension(material.MTD).ToLower();
                 int matIdx = flver.Materials.IndexOf(material);
                 PromptPlus.WriteLine(
                     $"Selected #{flver.Materials.IndexOf(material)}: {material.Name} || {material.MTD}");
                 var select = PromptPlus
-                    .Select<FLVER2MaterialInfoBank.MaterialDef>($"Select new material to replace {material.Name} with")
-                    .TextSelector(a => $"{a.MTD} ({a.Shader})")
-                    .AddItems(matInfoBank.MaterialDefs.Values)
+                    .Select<FLVER2MaterialInfoBank.MaterialDef>($"Select new material to replace {material.Name} || {material.MTD} with")
+                    .TextSelector(a => $"{a.MTD} ({a.Shader}) ({a.GXItems.Count} GXI)")
+                    .AddItems(matInfoBank.MaterialDefs.Values.OrderBy(v => v.MTD == mtd))
                     .Run();
                 if (select.IsAborted) break;
                 var replaceMatDef = select.Value;
 
                 FLVER2.GXList gxList = new();
                 gxList.AddRange(matInfoBank.GetDefaultGXItemsForMTD(replaceMatDef.MTD));
+
                 flver.GXLists.Add(gxList);
-                material.MTD = replaceMatDef.MTD;
+                var mtdDecisionPrompt = PromptPlus.Select<MTDDecision>("What to do about the material name in the mesh?")
+                    .Default(mtdDecisionKeep)
+                    .Run();
+                if (mtdDecisionPrompt.IsAborted) break;
+                switch (mtdDecisionPrompt.Value)
+                {
+                    case MTDDecision.UseNewMTD:
+                        material.MTD = replaceMatDef.MTD;
+                        break;
+                    case MTDDecision.KeepOldMTD:
+                        break;
+                    case MTDDecision.CustomName:
+                        var mtdInput = PromptPlus
+                            .Input("Input new material name for the mesh (.matxml will be appended)").Run();
+                        if (mtdInput.IsAborted)
+                        {
+                            material.MTD = replaceMatDef.MTD;
+                            break;
+                        }
+
+                        material.MTD = mtdInput.Value;
+                        break;
+                    default:
+                        throw new ArgumentOutOfRangeException();
+                }
+                mtdDecisionKeep = mtdDecisionPrompt.Value;
                 material.GXIndex = flver.GXLists.IndexOf(gxList);
 
                 material.Textures =
