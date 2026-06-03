@@ -28,6 +28,7 @@ class Program
         UseNewMTD,
         KeepOldMTD,
         CustomName,
+        KeepOriginal
     }
 
     public static bool IsDebug()
