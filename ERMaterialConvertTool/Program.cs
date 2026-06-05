@@ -1,12 +1,9 @@
-﻿using System;
-using System.Collections.Generic;
-using System.ComponentModel.DataAnnotations;
+﻿using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Globalization;
-using System.IO;
-using System.Linq;
-using System.Threading;
-using PPlus;
+using ERMaterialConvertTool.Modes;
+using NativeFileDialogSharp;
+using PromptPlusLibrary;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
@@ -16,19 +13,10 @@ class Program
 {
     private enum Mode
     {
-        [Display(Name = "Convert FLVER from another game")]
+        [Display(Name = "Convert FLVER metadata between versions")]
         ConvertFlver,
-
-        [Display(Name = "Swap a material for another")]
-        MaterialSwap,
-    }
-
-    private enum MTDDecision
-    {
-        UseNewMTD,
-        KeepOldMTD,
-        CustomName,
-        KeepOriginal
+        [Display(Name = "Edit FLVER materials")] EditFlver,
+        [Display(Name = "Exit program")] Exit
     }
 
     public static bool IsDebug()
@@ -44,26 +32,29 @@ class Program
         throw exception;
     }
 
-    private static void RunProgram(string[] args)
+    internal static FLVER2? LoadFlver(ref string? filePath)
     {
-        PromptPlus.DoubleDash("ERMaterialConvertTool");
-        PromptPlus.WriteLine(
-            "Hi! This is a quick tool for changing materials in an ELDEN RING FLVER2 file,\nor converting FLVER2 files from other games to ELDEN RING.");
-        PromptPlus.WriteLine();
-
-        var modeSelect = PromptPlus.Select<Mode>("Select mode of operation").Run();
-        if (modeSelect.IsAborted) return;
-
-        var mode = modeSelect.Value;
-
-        PromptPlus.KeyPress("In the next dialog, please select the FLVER file").Run();
-        string filePath;
-        while (true)
+        if (filePath != null)
         {
-            var picker = NativeFileDialogSharp.Dialog.FileOpen();
-            if (!picker.IsOk)
+            PromptPlus.Console.WriteLine("Reloading FLVER...");
+            return FLVER2.Read(filePath);
+        }
+        var flverPress = PromptPlus.Controls.KeyPress("In the next dialog, please select the FLVER file").Run();
+        if (flverPress.IsAborted)
+        {
+            filePath = null;
+            return null;
+        }
+        DialogResult? picker = null;
+        while (picker == null || !picker.IsCancelled)
+        {
+            picker = Dialog.FileOpen();
+            if (picker.IsCancelled) continue;
+            if (picker.IsError)
             {
-                PromptPlus.KeyPress("Invalid file path! Try again...").Run();
+                var filePathPress = PromptPlus.Controls.KeyPress("Invalid file path! Try again...").Run();
+                if (filePathPress.IsAborted)
+                    break;
                 continue;
             }
 
@@ -71,254 +62,128 @@ class Program
             break;
         }
 
-        PromptPlus.WriteLine("Loading FLVER...");
-        var flver = FLVER2.Read(filePath);
-
-        PromptPlus.WriteLine("Loading material bank...");
-        string matInfoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SapResources",
-            "FLVER2MaterialInfoBank", "BankER.xml");
-        var matInfoBank = FLVER2MaterialInfoBank.ReadFromXML(matInfoPath);
-        matInfoBank.MaterialDefs = matInfoBank.MaterialDefs.OrderBy(a => a.Value.MTD).ToDictionary();
-
-        bool changesMade = false;
-        bool exitAndSave = false;
-        var mtdDecisionKeep = (MTDDecision)0;
-        if (mode == Mode.ConvertFlver)
+        if (filePath == null)
         {
-            PromptPlus.WriteLine("Preparing FLVER...");
-            var flverVersion = flver.Header.Version;
-            bool isPreEldenRing = flverVersion < 0x2001A;
-            bool isNightreign = flverVersion == 0x20021;
-            flver.Header.Version = 0x2001A;
-            if (isPreEldenRing)
-            {
-                PromptPlus.WriteLine("FLVER is pre-ELDEN RING; adding a skeleton set.");
-                flver.Skeletons = new FLVER2.SkeletonSet();
-            }
-
-            if (isNightreign)
-            {
-                PromptPlus.WriteLine("FLVER is from Nightreign; changing some header values.");
-                flver.Header.Unk68 = 4;
-                flver.Header.Unk74 = 0;
-            }
-
-            flver.BufferLayouts = new();
-            flver.GXLists = new();
-
-            Dictionary<string, FLVER2MaterialInfoBank.MaterialDef> mapping = new();
-            Dictionary<string, MTDDecision> mtdDecisionMapping = new();
-            PromptPlus.WriteLine(
-                $"Materials:\n{string.Join("\n", flver.Materials.Select(a => $"#{flver.Materials.IndexOf(a)}: {a.Name} ({a.MTD}) Index {a.Index}"))}\n");
-            foreach (string mtd in flver.Materials.Select(a => Path.GetFileNameWithoutExtension(a.MTD).ToLower())
-                         .Distinct())
-            {
-                var select = PromptPlus.Select<FLVER2MaterialInfoBank.MaterialDef>($"Select ER material to map to {mtd}")
-                    .TextSelector(a => $"{a.MTD} ({a.Shader})")
-                    .AddItems(matInfoBank.MaterialDefs.Values.OrderBy(v => v.MTD.ToLower() == mtd));
-
-                var selectPrompt = select.Run();
-
-                mapping[mtd] = selectPrompt.Value;
-
-                var mtdDecisionPrompt = PromptPlus.Select<MTDDecision>("What to do about the material name in the mesh?")
-                    .Default(mtdDecisionKeep)
-                    .Run();
-                if (mtdDecisionPrompt.IsAborted) break;
-                mtdDecisionMapping[mtd] = mtdDecisionPrompt.Value;
-                mtdDecisionKeep = mtdDecisionPrompt.Value;
-            }
-
-            foreach (FLVER2.Material flverMaterial in flver.Materials)
-            {
-                var matIndex = flver.Materials.IndexOf(flverMaterial);
-                PromptPlus.WriteLine(
-                    $"Processing material #{matIndex}: {Path.GetFileNameWithoutExtension(flverMaterial.Name)}");
-                var matName = Path.GetFileNameWithoutExtension(flverMaterial.MTD).ToLower();
-
-                FLVER2MaterialInfoBank.MaterialDef matDef = mapping[matName];
-
-                FLVER2.GXList gxList = new();
-                gxList.AddRange(matInfoBank.GetDefaultGXItemsForMTD(matDef.MTD));
-
-                flver.GXLists.Add(gxList);
-                switch (mtdDecisionMapping[matName])
-                {
-                    case MTDDecision.UseNewMTD:
-                        flverMaterial.MTD = matDef.MTD;
-                        break;
-                    case MTDDecision.KeepOldMTD:
-                        break;
-                    case MTDDecision.CustomName:
-                        var mtdInput = PromptPlus
-                            .Input("Input new material name for the mesh (.matxml will be appended)").Run();
-                        if (mtdInput.IsAborted)
-                        {
-                            flverMaterial.MTD = matDef.MTD;
-                            break;
-                        }
-
-                        flverMaterial.MTD = mtdInput.Value;
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-                if (isPreEldenRing)
-                    flverMaterial.Index = matIndex;
-                flverMaterial.GXIndex = flver.GXLists.IndexOf(gxList);
-
-                flverMaterial.Textures =
-                    matDef.TextureChannels.Values.Select(x => new FLVER2.Texture { ParamName = x }).ToList();
-
-                var meshes = flver.Meshes.Where(a => a.MaterialIndex == matIndex).ToList();
-                var firstMesh = meshes.First();
-                var acceptableBufferDeclarations = matDef.AcceptableVertexBufferDeclarations;
-                List<FLVER2.BufferLayout> bufferLayouts = acceptableBufferDeclarations[0].Buffers;
-                if (acceptableBufferDeclarations.Count > 1)
-                {
-                    List<FLVER2.BufferLayout>? matchingLayouts = acceptableBufferDeclarations.FirstOrDefault(x =>
-                        x.Buffers.SelectMany(y => y).Count(y => y.Semantic == FLVER.LayoutSemantic.Tangent) >=
-                        firstMesh.Vertices.First().Tangents.Count)?.Buffers;
-
-                    if (matchingLayouts != null)
-                    {
-                        // Log.Log("Replace with matching layouts");
-                        bufferLayouts = matchingLayouts;
-                    }
-                }
-
-                List<int> layoutIndices = FlverUtils.GetLayoutIndices(flver, bufferLayouts);
-                foreach (FLVER2.Mesh mesh in meshes)
-                {
-                    mesh.VertexBuffers = layoutIndices.Select(x => new FLVER2.VertexBuffer(x)).ToList();
-                    foreach (var v in mesh.Vertices)
-                    {
-                        FlverUtils.PadVertex(v, bufferLayouts);
-                    }
-                }
-
-                FlverUtils.AdjustBoneIndexBufferSize(flver, bufferLayouts);
-            }
-
-            PromptPlus.WriteLine();
-            PromptPlus.WriteLine($"FLVER conversion complete.");
-            PromptPlus.WriteLine();
-            exitAndSave = true;
+            return null;
         }
-        else if (mode == Mode.MaterialSwap)
+
+        var confirm = PromptPlus.Controls.Confirm("Would you like to choose a different path to save any output to?")
+            .Run();
+        if (confirm is { IsAborted: false, Content: not null } && confirm.Content.Value.IsYesResponseKey())
         {
-            while (true)
+            var tarPicker = Dialog.FileSave("flver", Path.GetDirectoryName(filePath)!);
+            if (tarPicker.IsOk)
             {
-                if (changesMade)
+                if (filePath != tarPicker.Path)
                 {
-                    var confirm = PromptPlus.Confirm("Swap more materials? (Select \"No\" to save your changes)").Run();
-                    if (confirm.Value.IsNoResponseKey())
-                    {
-                        exitAndSave = true;
-                        break;
-                    }
+                    PromptPlus.Console.WriteLine($"Copying file to {tarPicker.Path.PromptPlusEscape()}...");
+                    File.Copy(filePath, tarPicker.Path, true);
                 }
-
-                var matSelect = PromptPlus
-                    .Select<FLVER2.Material>("Select a material to swap")
-                    .AddItems(flver.Materials)
-                    .TextSelector(m => $"#{flver.Materials.IndexOf(m)}: {m.Name} || {m.MTD}")
-                    .Run();
-                if (matSelect.IsAborted) break;
-                var material = matSelect.Value;
-                var mtd = Path.GetFileNameWithoutExtension(material.MTD).ToLower();
-                int matIdx = flver.Materials.IndexOf(material);
-                PromptPlus.WriteLine(
-                    $"Selected #{flver.Materials.IndexOf(material)}: {material.Name} || {material.MTD}");
-                var select = PromptPlus
-                    .Select<FLVER2MaterialInfoBank.MaterialDef>($"Select new material to replace {material.Name} || {material.MTD} with")
-                    .TextSelector(a => $"{a.MTD} ({a.Shader}) ({a.GXItems.Count} GXI)")
-                    .AddItems(matInfoBank.MaterialDefs.Values.OrderBy(v => v.MTD == mtd))
-                    .Run();
-                if (select.IsAborted) break;
-                var replaceMatDef = select.Value;
-
-                FLVER2.GXList gxList = new();
-                gxList.AddRange(matInfoBank.GetDefaultGXItemsForMTD(replaceMatDef.MTD));
-
-                flver.GXLists.Add(gxList);
-                var mtdDecisionPrompt = PromptPlus.Select<MTDDecision>("What to do about the material name in the mesh?")
-                    .Default(mtdDecisionKeep)
-                    .Run();
-                if (mtdDecisionPrompt.IsAborted) break;
-                switch (mtdDecisionPrompt.Value)
-                {
-                    case MTDDecision.UseNewMTD:
-                        material.MTD = replaceMatDef.MTD;
-                        break;
-                    case MTDDecision.KeepOldMTD:
-                        break;
-                    case MTDDecision.CustomName:
-                        var mtdInput = PromptPlus
-                            .Input("Input new material name for the mesh (.matxml will be appended)").Run();
-                        if (mtdInput.IsAborted)
-                        {
-                            material.MTD = replaceMatDef.MTD;
-                            break;
-                        }
-
-                        material.MTD = mtdInput.Value;
-                        break;
-                    default:
-                        throw new ArgumentOutOfRangeException();
-                }
-                mtdDecisionKeep = mtdDecisionPrompt.Value;
-                material.GXIndex = flver.GXLists.IndexOf(gxList);
-
-                material.Textures =
-                    replaceMatDef.TextureChannels.Values.Select(x => new FLVER2.Texture { ParamName = x }).ToList();
-
-                var meshes = flver.Meshes.Where(a => a.MaterialIndex == matIdx).ToList();
-                var firstMesh = meshes.First();
-                var acceptableBufferDeclarations = replaceMatDef.AcceptableVertexBufferDeclarations;
-                List<FLVER2.BufferLayout> bufferLayouts = acceptableBufferDeclarations[0].Buffers;
-                if (acceptableBufferDeclarations.Count > 1)
-                {
-                    List<FLVER2.BufferLayout>? matchingLayouts = acceptableBufferDeclarations.FirstOrDefault(x =>
-                        x.Buffers.SelectMany(y => y).Count(y => y.Semantic == FLVER.LayoutSemantic.Tangent) >=
-                        firstMesh.Vertices.First().Tangents.Count)?.Buffers;
-
-                    if (matchingLayouts != null)
-                    {
-                        // Log.Log("Replace with matching layouts");
-                        bufferLayouts = matchingLayouts;
-                    }
-                }
-
-                List<int> layoutIndices = FlverUtils.GetLayoutIndices(flver, bufferLayouts);
-                foreach (FLVER2.Mesh mesh in meshes)
-                {
-                    mesh.VertexBuffers = layoutIndices.Select(x => new FLVER2.VertexBuffer(x)).ToList();
-                    foreach (var v in mesh.Vertices)
-                    {
-                        FlverUtils.PadVertex(v, bufferLayouts);
-                    }
-                }
-
-                FlverUtils.AdjustBoneIndexBufferSize(flver, bufferLayouts);
-                changesMade = true;
-                PromptPlus.WriteLine();
-                PromptPlus.WriteLine($"Material conversion complete.");
-                PromptPlus.WriteLine();
+                filePath = tarPicker.Path;
             }
         }
 
-        if (exitAndSave)
+        PromptPlus.Console.WriteLine("Loading FLVER...");
+        return FLVER2.Read(filePath);
+    }
+
+    internal static void SaveFlver(ref FLVER2 flver, ref string filePath, bool prompt = false)
+    {
+        if (prompt)
         {
-            PromptPlus.WriteLine("Backing up FLVER...");
-            if (File.Exists(filePath))
+            var confirm = PromptPlus.Controls.Confirm("Save FLVER? Changes will be discarded otherwise.").Run();
+            if (confirm.IsAborted || confirm.Content.HasValue && confirm.Content.Value.IsNoResponseKey()) return;
+        }
+
+        if (File.Exists(filePath))
+        {
+            PromptPlus.Console.WriteLine("Backing up FLVER...");
+            File.Copy(filePath, ($"{filePath}.bak"), true);
+        }
+
+        CleanFlver(ref flver);
+
+        PromptPlus.Console.WriteLine("Saving FLVER...");
+        var tmpPath = Path.GetTempFileName();
+        try
+        {
+            flver.Write(tmpPath);
+        }
+        catch (Exception e) when (!IsDebug())
+        {
+            PromptPlus.Console.WriteLine($"[RED]ERROR[/]: There was an error in saving the FLVER:\n{e}");
+            PromptPlus.Controls.KeyPress("Press any key to continue...").Run();
+            return;
+        }
+        PromptPlus.Console.WriteLine("Copying saved FLVER...");
+        File.Copy(tmpPath, filePath, true);
+        PromptPlus.Console.WriteLine("Removing temporary file...");
+        File.Delete(tmpPath);
+
+        PromptPlus.Controls.KeyPress("Successfully saved the FLVER! Enjoy.").Run();
+    }
+
+    internal static void CleanFlver(ref FLVER2 flver)
+    {
+        var f = flver;
+        var unusedLayouts = f.BufferLayouts.Where(l =>
+        {
+            var idx = f.BufferLayouts.IndexOf(l);
+            return !f.Meshes.Any(m => m.VertexBuffers.Any(b => b.LayoutIndex == idx));
+        }).ToList();
+
+        unusedLayouts.Reverse();
+
+        foreach (FLVER2.BufferLayout l in unusedLayouts)
+        {
+            var idx = f.BufferLayouts.IndexOf(l);
+            foreach (FLVER2.VertexBuffer buffer in f.Meshes.SelectMany(m => m.VertexBuffers).Where(b => b.LayoutIndex > idx))
             {
-                File.Copy(filePath, ($"{filePath}.bak"), true);
+                buffer.LayoutIndex -= 1;
+            }
+            PromptPlus.Console.WriteLine($"Removing unused buffer layout #{idx} ({l.Count} members)");
+            f.BufferLayouts.Remove(l);
+        }
+    }
+
+    private static void RunProgram(string[] args)
+    {
+        while (true)
+        {
+            PromptPlus.Console.Clear();
+            PromptPlus.Widgets.DoubleDash("ERMaterialConvertTool");
+            PromptPlus.Console.WriteLine(
+                "Hi! This is a tool for changing materials in an ELDEN RING FLVER2 file,\nor converting FLVER2 files from other games to ELDEN RING.");
+            PromptPlus.Console.WriteLine("");
+
+            // string brokenPath = "G:\\Creative\\GitHub\\err-dev\\ERR\\mod\\chr\\c7580-chrbnd-dcx\\c7580.flver";
+            // string workingPath = "G:\\Creative\\GitHub\\err-dev\\ERR\\mod\\chr\\c7580-chrbnd-dcx\\c7580-kindaworks.flver";
+            // string nrPath = "G:\\Creative\\GitHub\\err-dev\\ERR\\mod\\chr\\c7580-chrbnd-dcx\\c7580_nr.flver";
+            // // var broken = LoadFlver(ref brokenPath)!;
+            // // var working = LoadFlver(ref workingPath)!;
+            // // var nr = LoadFlver(ref nrPath)!;
+
+            var modeSelect = PromptPlus.Controls.Select<Mode>("Select mode of operation: ").Run();
+            if (modeSelect.IsAborted) return;
+
+            Mode mode = modeSelect.Content;
+
+            if (mode == Mode.Exit)
+            {
+                return;
             }
 
-            PromptPlus.WriteLine("Saving FLVER...");
-            flver.Write(filePath);
-            PromptPlus.KeyPress("Successfully saved the FLVER! Enjoy.").Run();
+            string? filePath = null;
+            FLVER2? flver = null;
+
+            if (mode == Mode.ConvertFlver)
+            {
+                ConvertFlver.Perform(ref flver, ref filePath);
+            }
+            else if (mode == Mode.EditFlver)
+            {
+                EditFlver.Perform(ref flver, ref filePath);
+            }
         }
     }
 
@@ -327,7 +192,6 @@ class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
         PromptPlus.Config.DefaultCulture = new CultureInfo("en-us");
-        PromptPlus.IgnoreColorTokens = true;
 
         if (!IsDebug())
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -340,7 +204,7 @@ class Program
         {
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(AppContext.BaseDirectory), "crash.log"),
                 e?.InnerException?.ToString() ?? e?.ToString());
-            PromptPlus.Error.WriteLine(@$"
+            PromptPlus.Console.Error.WriteLine(@$"
 There was an exception:
 
 {e?.InnerException?.ToString() ?? e?.ToString()}
@@ -348,7 +212,7 @@ There was an exception:
 This error message has also been saved to crash.log in the program directory.
 
 Press any key to exit...");
-            PromptPlus.ReadKey();
+            PromptPlus.Console.ReadKey();
         }
     }
 }

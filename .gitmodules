@@ -1,3 +1,4 @@
 [submodule "SoulsFormatsNEXT"]
 	path = SoulsFormatsNEXT
 	url = https://github.com/soulsmods/SoulsFormatsNEXT
+	branch = feat/vertex-multiple-positions-normals
