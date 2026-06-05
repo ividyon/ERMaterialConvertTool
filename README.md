@@ -21,6 +21,11 @@ ERMaterialConvertTool is built using the following licensed works:
 
 ## Changelog
 
+### 1.1.0.1
+
+* Downgraded PromptPlus to regain filter functionality.
+* Removed some superfluous prompts for decision.
+
 ### 1.1.0.0
 
 Big overhaul for comfort and functionality.

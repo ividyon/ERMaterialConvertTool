@@ -22,9 +22,14 @@ public static partial class EditFlver
         bool materialLoop = true;
         MatNameDecision matNameDecisionKeep = 0;
         string? name = null;
+        bool firstTime = true;
         while (materialLoop)
         {
-            flver = Program.LoadFlver(ref filePath!)!;
+            if (!firstTime)
+            {
+                flver = Program.LoadFlver(ref filePath!)!;
+            }
+            firstTime = false;
             var materials = flver.Materials!;
             var mergedBank = MatInfoBank.GetMergedMatInfoBank();
 
@@ -41,15 +46,15 @@ public static partial class EditFlver
 
             FLVER2.Material material = matSelect.Value;
 
-            var materialDecision =
-                PromptPlus.Select<MaterialDecision>("Choose action to perform (press Esc to go back)").Run();
-            if (materialDecision.IsAborted)
-                continue;
+            // var materialDecision =
+            //     PromptPlus.Select<MaterialDecision>("Choose action to perform (press Esc to go back)").Run();
+            // if (materialDecision.IsAborted)
+            //     continue;
 
             FLVER2MaterialInfoBank matInfoBank;
-            switch (materialDecision.Value)
-            {
-                case MaterialDecision.ChangeMaterial:
+            // switch (materialDecision.Value)
+            // {
+            //     case MaterialDecision.ChangeMaterial:
                     matInfoBank = MatInfoBank.GetERMatInfoBank();
                     if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, ref matNameDecisionKeep, ref name))
                     {
@@ -70,9 +75,9 @@ public static partial class EditFlver
                 // case MaterialDecision.EditFacesets:
                 //     PromptPlus.KeyPress("NYI").Run();
                 //     continue;
-                default:
-                    throw new ArgumentOutOfRangeException();
-            }
+            //     default:
+            //         throw new ArgumentOutOfRangeException();
+            // }
         }
     }
 }

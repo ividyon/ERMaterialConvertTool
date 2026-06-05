@@ -45,12 +45,13 @@ public static partial class EditFlver
             }
             else
             {
-                var skinConfirm = PromptPlus
-                    .Confirm(
-                        "This material is used on skinned meshes, which requires specific materials. Filter for those?")
-                    .Run();
-                if (skinConfirm.IsAborted) return false;
-                filterSkinned = skinConfirm.Value.IsYesResponseKey();
+                // var skinConfirm = PromptPlus
+                //     .Confirm(
+                //         "This material is used on skinned meshes, which requires specific materials. Filter for those?")
+                //     .Run();
+                // if (skinConfirm.IsAborted) return false;
+                // filterSkinned = skinConfirm.Value.IsYesResponseKey();
+                filterSkinned = true;
             }
         }
 
@@ -266,12 +267,12 @@ public static partial class EditFlver
                     if (targetCount > currentCount)
                     {
                         PromptPlus.WriteLine(
-                            $"[YELLOW]WARNING[/]: Target needs {targetCount} {semantic.ToString()}, current material has only {currentCount}. Expect issues.");
+                            $"WARNING: Target needs {targetCount} {semantic.ToString()}, current material has only {currentCount}. Expect issues.");
                     }
                     else if (targetCount < currentCount)
                     {
                         PromptPlus.WriteLine(
-                            $"[YELLOW]DATA LOSS WARNING[/]: {semantic.ToString()} count mismatch: Current material has {currentCount}, target material only {targetCount}.");
+                            $"DATA LOSS WARNING: {semantic.ToString()} count mismatch: Current material has {currentCount}, target material only {targetCount}.");
                         PromptPlus.WriteLine(
                             $"Please choose how to reallocate current {semantic.ToString()}s.");
                         var currentChoices = new List<int>();
@@ -288,9 +289,15 @@ public static partial class EditFlver
                                     $"Select current {semantic.ToString()} to place at ID #{targetI} ({targetI + 1}/{targetCount})")
                                 .AddItems(currentChoices)
                                 .TextSelector(c => $"#{c}")
-                                .Config(o => o.EnabledAbortKey(false))
-                                .Run();
-                            targets.Add(currentSelect.Value);
+                                .Config(o => o.EnabledAbortKey(false));
+
+                            if (currentChoices.Contains(targetI))
+                            {
+                                currentSelect.Default(targetI);
+                            }
+
+                            var selectRun = currentSelect.Run();
+                            targets.Add(selectRun.Value);
                         }
 
                         PromptPlus.WriteLine("Applying new UV setup to all affected vertices...");
