@@ -1,4 +1,4 @@
-﻿using PromptPlusLibrary;
+﻿using PPlus;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsAssetPipeline.XmlStructs;
 
@@ -15,7 +15,7 @@ public static class MatInfoBank
         if (ERMatInfoBank != null)
             return ERMatInfoBank;
 
-        PromptPlus.Console.WriteLine("Loading ER material bank...");
+        PromptPlus.WriteLine("Loading ER material bank...");
         string matInfoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SapResources",
             "FLVER2MaterialInfoBank", "BankER.xml");
         FLVER2MaterialInfoBank matInfoBank = FLVER2MaterialInfoBank.ReadFromXML(matInfoPath);
@@ -29,7 +29,7 @@ public static class MatInfoBank
         if (NRMatInfoBank != null)
             return NRMatInfoBank;
 
-        PromptPlus.Console.WriteLine("Loading NR material bank...");
+        PromptPlus.WriteLine("Loading NR material bank...");
         string matInfoPath = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "SapResources",
             "FLVER2MaterialInfoBank", "BankNR.xml");
         FLVER2MaterialInfoBank matInfoBank = FLVER2MaterialInfoBank.ReadFromXML(matInfoPath);
@@ -46,7 +46,7 @@ public static class MatInfoBank
 
         var erBank = GetERMatInfoBank();
         var nrBank = GetNRMatInfoBank();
-        PromptPlus.Console.WriteLine("Creating merged material bank...");
+        PromptPlus.WriteLine("Creating merged material bank...");
 
         var mergedBank = new FLVER2MaterialInfoBank()
         {

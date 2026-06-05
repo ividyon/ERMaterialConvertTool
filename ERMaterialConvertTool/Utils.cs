@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Numerics;
-using PromptPlusLibrary;
+﻿using System.Numerics;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
@@ -203,6 +199,7 @@ public static class PromptPlusExtensions
 {
     public static string PromptPlusEscape(this string s)
     {
-        return s.Replace("\\", "\\\\").Replace("[", "[[").Replace("]","]]");
+        // return s.Replace("\\", "\\\\").Replace("[", "[[").Replace("]","]]");
+        return s;
     }
 }

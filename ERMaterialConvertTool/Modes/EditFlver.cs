@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using PromptPlusLibrary;
+using PPlus;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
@@ -30,14 +30,14 @@ public static partial class EditFlver
                     flver = Program.LoadFlver(ref filePath);
                     if (flver == null || filePath == null) return;
 
-                    var editChoice = PromptPlus.Controls.Select<FlverDecision>("Select option: ").Run();
+                    var editChoice = PromptPlus.Select<FlverDecision>("Select option").Run();
                     if (editChoice.IsAborted)
                     {
                         flverDecisionLoop = false;
                         continue;
                     }
 
-                    switch (editChoice.Content)
+                    switch (editChoice.Value)
                     {
                         case FlverDecision.Exit:
                             flverDecisionLoop = false;
@@ -52,10 +52,10 @@ public static partial class EditFlver
                         //     Program.SaveFlver(ref flver, ref filePath);
                         //     break;
                         // case FlverDecision.Import:
-                        //     PromptPlus.Controls.KeyPress("NYI").Run();
+                        //     PromptPlus.KeyPress("NYI").Run();
                         //     break;
                         // case FlverDecision.Export:
-                        //     PromptPlus.Controls.KeyPress("NYI").Run();
+                        //     PromptPlus.KeyPress("NYI").Run();
                         //     break;
                         default:
                             throw new ArgumentOutOfRangeException();

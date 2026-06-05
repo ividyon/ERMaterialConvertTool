@@ -33,8 +33,7 @@
       <PackageReference Include="Microsoft.Extensions.Configuration.Json" Version="10.0.0-rc.1.25451.107" />
       <PackageReference Include="Microsoft.NET.ILLink.Tasks" Version="9.0.6" />
       <PackageReference Include="NativeFileDialogSharp" Version="0.6.0-alpha" />
-      <PackageReference Include="PromptPlus" Version="5.0.8" />
-      <PackageReference Include="Spectre.Console" Version="0.55.2" />
+      <PackageReference Include="PromptPlus" Version="4.2.0" />
     </ItemGroup>
 
     <ItemGroup>

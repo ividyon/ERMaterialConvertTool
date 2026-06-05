@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using PromptPlusLibrary;
+using PPlus;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
@@ -27,7 +27,7 @@ public static partial class EditFlver
         var materials = flver.Materials!;
         int matIdx = flver.Materials.IndexOf(material);
         var meshes = flver.Meshes.Where(a => a.MaterialIndex == matIdx).ToList();
-        PromptPlus.Console.WriteLine(
+        PromptPlus.WriteLine(
             $"Selected {material.ToString(materials.IndexOf(material), tarMatInfoBank).PromptPlusEscape()}");
         var skinned = meshes.Any(m =>
         {
@@ -45,18 +45,18 @@ public static partial class EditFlver
             }
             else
             {
-                var skinConfirm = PromptPlus.Controls
+                var skinConfirm = PromptPlus
                     .Confirm(
                         "This material is used on skinned meshes, which requires specific materials. Filter for those?")
                     .Run();
                 if (skinConfirm.IsAborted) return false;
-                filterSkinned = skinConfirm.Content.HasValue && skinConfirm.Content.Value.IsYesResponseKey();
+                filterSkinned = skinConfirm.Value.IsYesResponseKey();
             }
         }
 
         if (filterSkinned)
         {
-            PromptPlus.Console.WriteLine("Filtering for materials used on skinned meshes...");
+            PromptPlus.WriteLine("Filtering for materials used on skinned meshes...");
             tarMatInfoBank.MaterialDefs = tarMatInfoBank.MaterialDefs.Where(d =>
                 d.Value.AcceptableVertexBufferDeclarations.Any(dc =>
                     dc.Buffers.Any(b => b.Any(m => m.Semantic == FLVER.LayoutSemantic.BoneWeights)))).ToDictionary();
@@ -79,14 +79,14 @@ public static partial class EditFlver
                 var name = string.Join(" | ", (new string?[] { matchDef.MTD, matchDef.Shader }).OfType<string>());
                 if (auto)
                 {
-                    PromptPlus.Console.WriteLine($"Using matching target material: {name.PromptPlusEscape()}");
+                    PromptPlus.WriteLine($"Using matching target material: {name.PromptPlusEscape()}");
                     tempMatDef = matchDef;
                 }
                 else
                 {
-                    var confirm = PromptPlus.Controls.Confirm($"Found matching target material: {name.PromptPlusEscape()}. Use this?")
+                    var confirm = PromptPlus.Confirm($"Found matching target material: {name.PromptPlusEscape()}. Use this?")
                         .Run();
-                    if (!confirm.IsAborted && confirm.Content.HasValue && confirm.Content.Value.IsYesResponseKey())
+                    if (!confirm.IsAborted && confirm.Value.IsYesResponseKey())
                     {
                         tempMatDef = matchDef;
                     }
@@ -94,7 +94,7 @@ public static partial class EditFlver
             }
             else if (auto)
             {
-                PromptPlus.Controls.KeyPress(
+                PromptPlus.KeyPress(
                         $"Failed operation on {material.ToString(materials.IndexOf(material), srcMatInfoBank)}: no matching material found.")
                     .Run();
                 return false;
@@ -103,15 +103,14 @@ public static partial class EditFlver
 
         if (tempMatDef == null)
         {
-            var select = PromptPlus.Controls
+            var select = PromptPlus
                 .Select<FLVER2MaterialInfoBank.MaterialDef>(
-                    $"Select replacement material: ")
+                    $"Select replacement material")
                 .TextSelector(a => $"{a.MTD} | {a.Shader}".PromptPlusEscape())
                 .AddItems(tarMatInfoBank.MaterialDefs.Values.OrderBy(v => v.MTD.ToLower().StartsWith(mtd)))
-                .Filter(FilterMode.Contains)
                 .Run();
             if (select.IsAborted) return false;
-            tempMatDef = select.Content;
+            tempMatDef = select.Value;
         }
 
         FLVER2MaterialInfoBank.MaterialDef replaceMatDef = tempMatDef;
@@ -119,12 +118,12 @@ public static partial class EditFlver
         MatNameDecision nameDecision = MatNameDecision.KeepOldMTD;
         if (!auto)
         {
-            var mtdDecisionPrompt = PromptPlus.Controls
-                .Select<MatNameDecision>("Which MATBIN file to point the material at?: ")
+            var mtdDecisionPrompt = PromptPlus
+                .Select<MatNameDecision>("Which MATBIN file to point the material at?")
                 .Default(mtdDecisionKeep)
                 .Run();
             if (mtdDecisionPrompt.IsAborted) return false;
-            nameDecision = mtdDecisionPrompt.Content;
+            nameDecision = mtdDecisionPrompt.Value;
         }
 
         switch (nameDecision)
@@ -135,20 +134,20 @@ public static partial class EditFlver
             case MatNameDecision.KeepOldMTD:
                 break;
             case MatNameDecision.CustomName:
-                var mtdInput = PromptPlus.Controls
+                var mtdInput = PromptPlus
                     .Input("Input new material name for the mesh (.matxml will be appended)")
                     .Default(nameKeep)
                     .AcceptInput(_ => true)
                     .Run();
                 if (mtdInput.IsAborted)
                 {
-                    PromptPlus.Console.WriteLine("Aborted; defaulting to new MATBIN.");
+                    PromptPlus.WriteLine("Aborted; defaulting to new MATBIN.");
                     material.MTD = replaceMatDef.MTD;
                     break;
                 }
 
-                nameKeep = mtdInput.Content;
-                material.MTD = $"{mtdInput.Content.Replace(".matxml", "")}.matxml";
+                nameKeep = mtdInput.Value;
+                material.MTD = $"{mtdInput.Value.Replace(".matxml", "")}.matxml";
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -156,7 +155,7 @@ public static partial class EditFlver
 
         mtdDecisionKeep = nameDecision;
 
-        PromptPlus.Console.WriteLine("Making changes from this point on, do not abort.");
+        PromptPlus.WriteLine("Making changes from this point on, do not abort.");
 
         // Handle GXList
         FLVER2.GXList gxList = new();
@@ -178,12 +177,12 @@ public static partial class EditFlver
 
         if (existingGxList != null)
         {
-            PromptPlus.Console.WriteLine("Existing GXList matches, not changing.");
+            PromptPlus.WriteLine("Existing GXList matches, not changing.");
             gxList = existingGxList;
         }
         else
         {
-            PromptPlus.Console.WriteLine("Adding new GXList.");
+            PromptPlus.WriteLine("Adding new GXList.");
             flver.GXLists.Add(gxList);
         }
 
@@ -202,7 +201,7 @@ public static partial class EditFlver
             }).ToList();
         if (uniqueBufferMeshGroups.Count > 1)
         {
-            PromptPlus.Console.WriteLine($"Found {uniqueBufferMeshGroups.Count} unique vertex buffers");
+            PromptPlus.WriteLine($"Found {uniqueBufferMeshGroups.Count} unique vertex buffers");
         }
 
         foreach (IGrouping<string, FLVER2.Mesh> group in uniqueBufferMeshGroups)
@@ -266,14 +265,14 @@ public static partial class EditFlver
                     };
                     if (targetCount > currentCount)
                     {
-                        PromptPlus.Console.WriteLine(
+                        PromptPlus.WriteLine(
                             $"[YELLOW]WARNING[/]: Target needs {targetCount} {semantic.ToString()}, current material has only {currentCount}. Expect issues.");
                     }
                     else if (targetCount < currentCount)
                     {
-                        PromptPlus.Console.WriteLine(
+                        PromptPlus.WriteLine(
                             $"[YELLOW]DATA LOSS WARNING[/]: {semantic.ToString()} count mismatch: Current material has {currentCount}, target material only {targetCount}.");
-                        PromptPlus.Console.WriteLine(
+                        PromptPlus.WriteLine(
                             $"Please choose how to reallocate current {semantic.ToString()}s.");
                         var currentChoices = new List<int>();
                         for (int currentI = 0; currentI < currentCount; currentI++)
@@ -284,17 +283,17 @@ public static partial class EditFlver
                         var targets = new List<int>();
                         for (int targetI = 0; targetI < targetCount; targetI++)
                         {
-                            var currentSelect = PromptPlus.Controls
+                            var currentSelect = PromptPlus
                                 .Select<int>(
-                                    $"Select current {semantic.ToString()} to place at ID #{targetI} ({targetI + 1}/{targetCount}): ")
+                                    $"Select current {semantic.ToString()} to place at ID #{targetI} ({targetI + 1}/{targetCount})")
                                 .AddItems(currentChoices)
                                 .TextSelector(c => $"#{c}")
-                                .Options(o => o.EnabledAbortKey(false))
+                                .Config(o => o.EnabledAbortKey(false))
                                 .Run();
-                            targets.Add(currentSelect.Content);
+                            targets.Add(currentSelect.Value);
                         }
 
-                        PromptPlus.Console.WriteLine("Applying new UV setup to all affected vertices...");
+                        PromptPlus.WriteLine("Applying new UV setup to all affected vertices...");
                         foreach (FLVER2.Mesh mesh in group)
                         {
                             foreach (FLVER.Vertex vertex in mesh.Vertices)

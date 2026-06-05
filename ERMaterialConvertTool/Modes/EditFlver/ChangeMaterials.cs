@@ -1,5 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
-using PromptPlusLibrary;
+using PPlus;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
@@ -28,9 +28,8 @@ public static partial class EditFlver
             var materials = flver.Materials!;
             var mergedBank = MatInfoBank.GetMergedMatInfoBank();
 
-            var matSelect = PromptPlus.Controls
-                .Select<FLVER2.Material>("Select a material (press Esc to go back): ")
-                .Filter(FilterMode.Contains)
+            var matSelect = PromptPlus
+                .Select<FLVER2.Material>("Select a material (press Esc to go back)")
                 .AddItems(flver.Materials)
                 .TextSelector(m => m.ToString(materials.IndexOf(m), mergedBank).PromptPlusEscape())
                 .Run();
@@ -40,36 +39,36 @@ public static partial class EditFlver
                 continue;
             }
 
-            FLVER2.Material material = matSelect.Content;
+            FLVER2.Material material = matSelect.Value;
 
             var materialDecision =
-                PromptPlus.Controls.Select<MaterialDecision>("Choose action to perform (press Esc to go back): ").Run();
+                PromptPlus.Select<MaterialDecision>("Choose action to perform (press Esc to go back)").Run();
             if (materialDecision.IsAborted)
                 continue;
 
             FLVER2MaterialInfoBank matInfoBank;
-            switch (materialDecision.Content)
+            switch (materialDecision.Value)
             {
                 case MaterialDecision.ChangeMaterial:
                     matInfoBank = MatInfoBank.GetERMatInfoBank();
                     if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, ref matNameDecisionKeep, ref name))
                     {
-                        PromptPlus.Console.WriteLine("");
-                        PromptPlus.Console.WriteLine("Material conversion complete.");
-                        PromptPlus.Console.WriteLine("");
+                        PromptPlus.WriteLine("");
+                        PromptPlus.WriteLine("Material conversion complete.");
+                        PromptPlus.WriteLine("");
                     }
                     break;
                 // case MaterialDecision.ChangeToNRMaterial:
                 //     matInfoBank = MatInfoBank.GetNRMatInfoBank();
                 //     if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, ref matNameDecisionKeep))
                 //     {
-                //         PromptPlus.Console.WriteLine();
-                //         PromptPlus.Console.WriteLine("Material conversion complete.");
-                //         PromptPlus.Console.WriteLine();
+                //         PromptPlus.WriteLine();
+                //         PromptPlus.WriteLine("Material conversion complete.");
+                //         PromptPlus.WriteLine();
                 //     }
                 //     break;
                 // case MaterialDecision.EditFacesets:
-                //     PromptPlus.Controls.KeyPress("NYI").Run();
+                //     PromptPlus.KeyPress("NYI").Run();
                 //     continue;
                 default:
                     throw new ArgumentOutOfRangeException();

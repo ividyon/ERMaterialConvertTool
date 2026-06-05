@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Globalization;
 using ERMaterialConvertTool.Modes;
 using NativeFileDialogSharp;
-using PromptPlusLibrary;
+using PPlus;
 using SoulsAssetPipeline.FLVERImporting;
 using SoulsFormats;
 
@@ -36,10 +36,10 @@ class Program
     {
         if (filePath != null)
         {
-            PromptPlus.Console.WriteLine("Reloading FLVER...");
+            PromptPlus.WriteLine("Reloading FLVER...");
             return FLVER2.Read(filePath);
         }
-        var flverPress = PromptPlus.Controls.KeyPress("In the next dialog, please select the FLVER file").Run();
+        var flverPress = PromptPlus.KeyPress("In the next dialog, please select the FLVER file").Run();
         if (flverPress.IsAborted)
         {
             filePath = null;
@@ -52,7 +52,7 @@ class Program
             if (picker.IsCancelled) continue;
             if (picker.IsError)
             {
-                var filePathPress = PromptPlus.Controls.KeyPress("Invalid file path! Try again...").Run();
+                var filePathPress = PromptPlus.KeyPress("Invalid file path! Try again...").Run();
                 if (filePathPress.IsAborted)
                     break;
                 continue;
@@ -67,23 +67,23 @@ class Program
             return null;
         }
 
-        var confirm = PromptPlus.Controls.Confirm("Would you like to choose a different path to save any output to?")
+        var confirm = PromptPlus.Confirm("Would you like to choose a different path to save any output to?")
             .Run();
-        if (confirm is { IsAborted: false, Content: not null } && confirm.Content.Value.IsYesResponseKey())
+        if (!confirm.IsAborted && confirm.Value.IsYesResponseKey())
         {
             var tarPicker = Dialog.FileSave("flver", Path.GetDirectoryName(filePath)!);
             if (tarPicker.IsOk)
             {
                 if (filePath != tarPicker.Path)
                 {
-                    PromptPlus.Console.WriteLine($"Copying file to {tarPicker.Path.PromptPlusEscape()}...");
+                    PromptPlus.WriteLine($"Copying file to {tarPicker.Path.PromptPlusEscape()}...");
                     File.Copy(filePath, tarPicker.Path, true);
                 }
                 filePath = tarPicker.Path;
             }
         }
 
-        PromptPlus.Console.WriteLine("Loading FLVER...");
+        PromptPlus.WriteLine("Loading FLVER...");
         return FLVER2.Read(filePath);
     }
 
@@ -91,19 +91,19 @@ class Program
     {
         if (prompt)
         {
-            var confirm = PromptPlus.Controls.Confirm("Save FLVER? Changes will be discarded otherwise.").Run();
-            if (confirm.IsAborted || confirm.Content.HasValue && confirm.Content.Value.IsNoResponseKey()) return;
+            var confirm = PromptPlus.Confirm("Save FLVER? Changes will be discarded otherwise.").Run();
+            if (confirm.IsAborted || confirm.Value.IsNoResponseKey()) return;
         }
 
         if (File.Exists(filePath))
         {
-            PromptPlus.Console.WriteLine("Backing up FLVER...");
+            PromptPlus.WriteLine("Backing up FLVER...");
             File.Copy(filePath, ($"{filePath}.bak"), true);
         }
 
         CleanFlver(ref flver);
 
-        PromptPlus.Console.WriteLine("Saving FLVER...");
+        PromptPlus.WriteLine("Saving FLVER...");
         var tmpPath = Path.GetTempFileName();
         try
         {
@@ -111,16 +111,16 @@ class Program
         }
         catch (Exception e) when (!IsDebug())
         {
-            PromptPlus.Console.WriteLine($"[RED]ERROR[/]: There was an error in saving the FLVER:\n{e}");
-            PromptPlus.Controls.KeyPress("Press any key to continue...").Run();
+            PromptPlus.WriteLine($"[RED]ERROR[/]: There was an error in saving the FLVER:\n{e}");
+            PromptPlus.KeyPress("Press any key to continue...").Run();
             return;
         }
-        PromptPlus.Console.WriteLine("Copying saved FLVER...");
+        PromptPlus.WriteLine("Copying saved FLVER...");
         File.Copy(tmpPath, filePath, true);
-        PromptPlus.Console.WriteLine("Removing temporary file...");
+        PromptPlus.WriteLine("Removing temporary file...");
         File.Delete(tmpPath);
 
-        PromptPlus.Controls.KeyPress("Successfully saved the FLVER! Enjoy.").Run();
+        PromptPlus.KeyPress("Successfully saved the FLVER! Enjoy.").Run();
     }
 
     internal static void CleanFlver(ref FLVER2 flver)
@@ -141,7 +141,7 @@ class Program
             {
                 buffer.LayoutIndex -= 1;
             }
-            PromptPlus.Console.WriteLine($"Removing unused buffer layout #{idx} ({l.Count} members)");
+            PromptPlus.WriteLine($"Removing unused buffer layout #{idx} ({l.Count} members)");
             f.BufferLayouts.Remove(l);
         }
     }
@@ -150,11 +150,11 @@ class Program
     {
         while (true)
         {
-            PromptPlus.Console.Clear();
-            PromptPlus.Widgets.DoubleDash("ERMaterialConvertTool");
-            PromptPlus.Console.WriteLine(
+            PromptPlus.Clear();
+            PromptPlus.DoubleDash("ERMaterialConvertTool");
+            PromptPlus.WriteLine(
                 "Hi! This is a tool for changing materials in an ELDEN RING FLVER2 file,\nor converting FLVER2 files from other games to ELDEN RING.");
-            PromptPlus.Console.WriteLine("");
+            PromptPlus.WriteLine("");
 
             // string brokenPath = "G:\\Creative\\GitHub\\err-dev\\ERR\\mod\\chr\\c7580-chrbnd-dcx\\c7580.flver";
             // string workingPath = "G:\\Creative\\GitHub\\err-dev\\ERR\\mod\\chr\\c7580-chrbnd-dcx\\c7580-kindaworks.flver";
@@ -163,10 +163,10 @@ class Program
             // // var working = LoadFlver(ref workingPath)!;
             // // var nr = LoadFlver(ref nrPath)!;
 
-            var modeSelect = PromptPlus.Controls.Select<Mode>("Select mode of operation: ").Run();
+            var modeSelect = PromptPlus.Select<Mode>("Select mode of operation").Run();
             if (modeSelect.IsAborted) return;
 
-            Mode mode = modeSelect.Content;
+            Mode mode = modeSelect.Value;
 
             if (mode == Mode.Exit)
             {
@@ -192,6 +192,7 @@ class Program
         Console.OutputEncoding = System.Text.Encoding.UTF8;
         Thread.CurrentThread.CurrentCulture = CultureInfo.InvariantCulture;
         PromptPlus.Config.DefaultCulture = new CultureInfo("en-us");
+        PromptPlus.IgnoreColorTokens = true;
 
         if (!IsDebug())
             AppDomain.CurrentDomain.UnhandledException += OnUnhandledException;
@@ -204,7 +205,7 @@ class Program
         {
             File.WriteAllText(Path.Combine(Path.GetDirectoryName(AppContext.BaseDirectory), "crash.log"),
                 e?.InnerException?.ToString() ?? e?.ToString());
-            PromptPlus.Console.Error.WriteLine(@$"
+            PromptPlus.Error.WriteLine(@$"
 There was an exception:
 
 {e?.InnerException?.ToString() ?? e?.ToString()}
@@ -212,7 +213,7 @@ There was an exception:
 This error message has also been saved to crash.log in the program directory.
 
 Press any key to exit...");
-            PromptPlus.Console.ReadKey();
+            PromptPlus.ReadKey();
         }
     }
 }

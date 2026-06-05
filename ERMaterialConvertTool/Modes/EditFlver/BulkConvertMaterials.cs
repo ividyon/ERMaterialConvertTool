@@ -1,4 +1,4 @@
-﻿using PromptPlusLibrary;
+﻿using PPlus;
 using SoulsFormats;
 
 namespace ERMaterialConvertTool.Modes;
@@ -7,7 +7,7 @@ public static partial class EditFlver
 {
     public static bool BulkConvertMaterials(ref FLVER2 flver, ref string filePath)
     {
-        PromptPlus.Console.WriteLine(
+        PromptPlus.WriteLine(
             "This tool will automatically convert every material which has a fitting ER shader, without touching the MATBIN name.");
 
         var allMatInfoBank = MatInfoBank.GetMergedMatInfoBank();
@@ -31,25 +31,24 @@ public static partial class EditFlver
             return matchDefs.Any();
         }).ToList();
 
-        var multiSelect = PromptPlus.Controls.MultiSelect<FLVER2.Material>("Select materials to bulk convert")
+        var multiSelect = PromptPlus.MultiSelect<FLVER2.Material>("Select materials to bulk convert")
             .AddItems(matchingMaterials)
-            .Default(matchingMaterials)
+            .AddDefault(matchingMaterials)
             .TextSelector(m => m.ToString(materials.IndexOf(m), allMatInfoBank).PromptPlusEscape() )
-            .Filter(FilterMode.Contains)
             .Run();
         if (multiSelect.IsAborted) return false;
 
-        matchingMaterials = multiSelect.Content.ToList();
+        matchingMaterials = multiSelect.Value.ToList();
 
-        PromptPlus.Console.WriteLine("Will bulk convert materials:");
+        PromptPlus.WriteLine("Will bulk convert materials:");
         foreach (FLVER2.Material material in matchingMaterials)
         {
-            PromptPlus.Console.WriteLine($"- {material.ToString(materials.IndexOf(material), allMatInfoBank).PromptPlusEscape()}");
+            PromptPlus.WriteLine($"- {material.ToString(materials.IndexOf(material), allMatInfoBank).PromptPlusEscape()}");
         }
-        var confirm = PromptPlus.Controls.Confirm("Proceed?")
-            .Options(o => o.EnabledAbortKey(false))
+        var confirm = PromptPlus.Confirm("Proceed?")
+            .Config(o => o.EnabledAbortKey(false))
             .Run();
-        if (confirm.IsAborted || !confirm.Content.HasValue || confirm.Content.Value.IsNoResponseKey()) return false;
+        if (confirm.IsAborted || confirm.Value.IsNoResponseKey()) return false;
 
         MatNameDecision decision = MatNameDecision.KeepOldMTD;
         string? name = null;
