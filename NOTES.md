@@ -7,5 +7,4 @@ Big overhaul for comfort and functionality.
 * Added a bulk processing mode for automatically converting all materials which have matching shaders in ER.
 * For material conversions where the target has less UVs (and other layout members) than source, you can now select which to discard.
 * Added a warning, and a filter, for materials applied to skinned meshes, to avoid selecting incompatible ones.
-* 
 * Updated to latest SoulsFormatsNEXT which brings some small fixes.
