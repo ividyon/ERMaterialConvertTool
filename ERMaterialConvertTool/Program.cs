@@ -15,7 +15,9 @@ class Program
     {
         [Display(Name = "Convert FLVER metadata between versions")]
         ConvertFlver,
-        [Display(Name = "Edit FLVER materials")] EditFlver,
+        [Display(Name = "Edit single FLVER")] EditFlver,
+        [Display(Name = "Batch process FLVERs")] BatchFlver,
+        [Display(Name = "MATBIN utility actions")] MatbinUtility,
         [Display(Name = "Exit program")] Exit
     }
 
@@ -87,6 +89,21 @@ class Program
         return FLVER2.Read(filePath);
     }
 
+    internal static void SaveFlvers(Dictionary<string, FLVER2> flvers, bool prompt)
+    {
+        if (prompt)
+        {
+            var confirm = PromptPlus.Confirm("Save results? Changes will be discarded otherwise.").Run();
+            if (confirm.IsAborted || confirm.Value.IsNoResponseKey()) return;
+        }
+
+        foreach ((string filePath, FLVER2 flver) in flvers)
+        {
+            string p = filePath;
+            var f = flver;
+            SaveFlver(ref f, ref p);
+        }
+    }
     internal static void SaveFlver(ref FLVER2 flver, ref string filePath, bool prompt = false)
     {
         if (prompt)
@@ -120,7 +137,15 @@ class Program
         PromptPlus.WriteLine("Removing temporary file...");
         File.Delete(tmpPath);
 
-        PromptPlus.KeyPress("Successfully saved the FLVER! Enjoy.").Run();
+        string goodbye = "Successfully saved the FLVER! Enjoy.";
+        if (prompt)
+        {
+            PromptPlus.KeyPress(goodbye).Run();
+        }
+        else
+        {
+            PromptPlus.WriteLine("Successfully saved the FLVER! Enjoy.");
+        }
     }
 
     internal static void CleanFlver(ref FLVER2 flver)
@@ -176,13 +201,22 @@ class Program
             string? filePath = null;
             FLVER2? flver = null;
 
-            if (mode == Mode.ConvertFlver)
+            switch (mode)
             {
-                ConvertFlver.Perform(ref flver, ref filePath);
-            }
-            else if (mode == Mode.EditFlver)
-            {
-                EditFlver.Perform(ref flver, ref filePath);
+                case Mode.ConvertFlver:
+                    ConvertFlver.Perform(ref flver, ref filePath);
+                    break;
+                case Mode.EditFlver:
+                    EditFlver.Perform(ref flver, ref filePath);
+                    break;
+                case Mode.BatchFlver:
+                    BatchFlver.Perform();
+                    break;
+                case Mode.MatbinUtility:
+                    MatbinUtility.Perform();
+                    break;
+                default:
+                    throw new ArgumentOutOfRangeException();
             }
         }
     }

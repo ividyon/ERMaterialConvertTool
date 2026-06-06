@@ -9,8 +9,10 @@ public static partial class EditFlver
 {
     private enum FlverDecision
     {
-        [Display(Name = "Change a material")] ChangeMaterials,
-        [Display(Name = "Bulk convert materials")] BulkConvertMaterials,
+        [Display(Name = "Convert materials to shader")] ChangeMaterials,
+        [Display(Name = "Auto-convert materials with known shaders")] BulkConvertExistingMaterials,
+        [Display(Name = "Rearrange UVs")] RearrangeUVs,
+        // [Display(Name = "Remove motion blur")] RemoveMotionBlur,
         // [Display(Name = "Save FLVER")] Save,
         // [Display(Name = "Import and apply JSON")] Import,
         // [Display(Name = "Export JSON")] Export,
@@ -45,9 +47,15 @@ public static partial class EditFlver
                         case FlverDecision.ChangeMaterials:
                             ChangeMaterials(ref flver, ref filePath);
                             break;
-                        case FlverDecision.BulkConvertMaterials:
-                            BulkConvertMaterials(ref flver, ref filePath);
+                        case FlverDecision.BulkConvertExistingMaterials:
+                            BulkConvertExistingMaterials(ref flver, ref filePath);
                             break;
+                        case FlverDecision.RearrangeUVs:
+                            RearrangeUVs(ref flver, ref filePath);
+                            break;
+                        // case FlverDecision.RemoveMotionBlur:
+                        //     RemoveMotionBlur(ref flver, ref filePath);
+                        //     break;
                         // case FlverDecision.Save:
                         //     Program.SaveFlver(ref flver, ref filePath);
                         //     break;

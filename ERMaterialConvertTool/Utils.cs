@@ -182,16 +182,24 @@ public static class FlverUtils
 
 public static class FlverExtensions
 {
-    public static string ToString(this FLVER2.Material m, int index, FLVER2MaterialInfoBank matInfoBank)
+    public static string ToString(this FLVER2.Material m, FLVER2 flver, FLVER2MaterialInfoBank matInfoBank)
     {
         var name = m.Name;
         var mtd = m.MTD;
+        var index = flver.Materials.IndexOf(m);
         var matchDef = matInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
             Path.GetFileNameWithoutExtension(d.MTD).Equals(Path.GetFileNameWithoutExtension(mtd),
                 StringComparison.InvariantCultureIgnoreCase));
         var shader = matchDef?.Shader;
         List<string> components = new List<string?>{ name, mtd, shader }.OfType<string>().ToList();
         return $"{index}: {string.Join(" | ", components)}";
+    }
+
+    public static string ToString(this FLVER2.Mesh m, FLVER2 flver)
+    {
+        var assocMaterial = flver.Materials[m.MaterialIndex];
+        var index = flver.Meshes.IndexOf(m);
+        return $"#{index}: {assocMaterial.Name} | {assocMaterial.MTD}";
     }
 }
 

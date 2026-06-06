@@ -5,8 +5,9 @@ namespace ERMaterialConvertTool.Modes;
 
 public static partial class EditFlver
 {
-    public static bool BulkConvertMaterials(ref FLVER2 flver, ref string filePath)
+    public static bool BulkConvertExistingMaterials(ref FLVER2 flver, ref string filePath)
     {
+        var f = flver;
         PromptPlus.WriteLine(
             "This tool will automatically convert every material which has a fitting ER shader, without touching the MATBIN name.");
 
@@ -17,10 +18,10 @@ public static partial class EditFlver
 
         var matchingMaterials = materials.Where(material =>
         {
-            var mtd = Path.GetFileNameWithoutExtension(material.MTD).ToLower();
+            var mtd = material.MTD;
             var originalMatDef =
                 allMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
-                    Path.GetFileNameWithoutExtension(d.MTD).Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
+                    d.MTD.Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
 
             if (originalMatDef == null) return false;
             var matchDefs = erMatInfoBank.MaterialDefs.Values
@@ -34,7 +35,7 @@ public static partial class EditFlver
         var multiSelect = PromptPlus.MultiSelect<FLVER2.Material>("Select materials to bulk convert")
             .AddItems(matchingMaterials)
             .AddDefault(matchingMaterials)
-            .TextSelector(m => m.ToString(materials.IndexOf(m), allMatInfoBank).PromptPlusEscape() )
+            .TextSelector(m => m.ToString(f, allMatInfoBank).PromptPlusEscape() )
             .Run();
         if (multiSelect.IsAborted) return false;
 
@@ -43,7 +44,7 @@ public static partial class EditFlver
         PromptPlus.WriteLine("Will bulk convert materials:");
         foreach (FLVER2.Material material in matchingMaterials)
         {
-            PromptPlus.WriteLine($"- {material.ToString(materials.IndexOf(material), allMatInfoBank).PromptPlusEscape()}");
+            PromptPlus.WriteLine($"- {material.ToString(f, allMatInfoBank).PromptPlusEscape()}");
         }
         var confirm = PromptPlus.Confirm("Proceed?")
             .Config(o => o.EnabledAbortKey(false))
@@ -54,7 +55,7 @@ public static partial class EditFlver
         string? name = null;
         foreach (FLVER2.Material material in matchingMaterials)
         {
-            ChangeMaterial(flver, filePath, material, allMatInfoBank, erMatInfoBank, ref decision, ref name, true);
+            ChangeMaterial(flver, filePath, material, allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
         }
         Program.SaveFlver(ref flver, ref filePath, true);
 

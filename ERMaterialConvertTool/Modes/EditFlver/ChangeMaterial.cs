@@ -7,7 +7,7 @@ namespace ERMaterialConvertTool.Modes;
 
 public static partial class EditFlver
 {
-    internal enum MatNameDecision
+    public enum MatNameDecision
     {
         [Display(Name = "Update to selected MATBIN")]
         UseNewMTD,
@@ -19,23 +19,68 @@ public static partial class EditFlver
         CustomName,
     }
 
-    private static bool ChangeMaterial(FLVER2 flver, string filePath, FLVER2.Material material,
-        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank,
+    public static bool ChangeMaterial(FLVER2 flver, string filePath, FLVER2.Material srcMaterial,
+        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank, bool single,
         ref MatNameDecision mtdDecisionKeep, ref string? nameKeep, bool auto = false)
     {
-        var mtd = Path.GetFileNameWithoutExtension(material.MTD).ToLower();
-        var materials = flver.Materials!;
-        int matIdx = flver.Materials.IndexOf(material);
-        var meshes = flver.Meshes.Where(a => a.MaterialIndex == matIdx).ToList();
-        PromptPlus.WriteLine(
-            $"Selected {material.ToString(materials.IndexOf(material), tarMatInfoBank).PromptPlusEscape()}");
-        var skinned = meshes.Any(m =>
+        Dictionary<string, FLVER2> dict = new() { { filePath, flver } };
+        return ChangeMaterial(dict, srcMaterial, srcMatInfoBank, tarMatInfoBank, single, ref mtdDecisionKeep,
+            ref nameKeep, auto);
+    }
+
+    public static bool ChangeMaterial(Dictionary<string, FLVER2> flvers, FLVER2.Material srcMaterial,
+        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank, bool single,
+        ref MatNameDecision mtdDecisionKeep, ref string? nameKeep, bool auto = false)
+    {
+        if (flvers.Count > 1)
+            single = false;
+
+        var srcFlver = flvers.Values.First(f => f.Materials.Contains(srcMaterial));
+        var mtd = srcMaterial.MTD;
+        Dictionary<FLVER2, List<FLVER2.Material>> groupedMaterials = single
+            ? new()
+                { { srcFlver, new() { srcMaterial } } }
+            : flvers.Values.ToDictionary(f => f,
+                f => f.Materials.Where(m => m.MTD.Equals(srcMaterial.MTD, StringComparison.CurrentCultureIgnoreCase))
+                    .ToList());
+        var groupedIndices =
+            groupedMaterials.ToDictionary(kvp => kvp.Key,
+                kvp => kvp.Value.Select(m => kvp.Key.Materials.IndexOf(m)).ToList());
+        var groupedMeshes = groupedIndices.ToDictionary(kvp => kvp.Key,
+            kvp => kvp.Key.Meshes.Where(m => kvp.Value.Contains(m.MaterialIndex)).ToList());
+
+        var allMeshes = groupedMeshes.SelectMany(kvp => kvp.Value).ToList();
+        var allMaterials = groupedMaterials.SelectMany(kvp => kvp.Value).ToList();
+
+        var materialStrings = groupedMaterials.SelectMany(kvp =>
         {
-            var layoutIndices = m.VertexBuffers.Select(a => a.LayoutIndex).ToList();
-            var layouts = flver.BufferLayouts.Where(l => layoutIndices.Contains(flver.BufferLayouts.IndexOf(l)))
-                .ToList();
-            return layouts.Any(l => l.Any(m => m.Semantic == FLVER.LayoutSemantic.BoneWeights));
+            return kvp.Value.Select(m => m.ToString(kvp.Key, srcMatInfoBank));
+        }).ToList();
+        if (single)
+        {
+            PromptPlus.WriteLine(
+                $"Selected material: {srcMaterial.ToString(srcFlver, srcMatInfoBank)}");
+        }
+        else
+        {
+            PromptPlus.WriteLine(
+                $"Selected the following materials:\n{string.Join("\n", materialStrings)}");
+        }
+
+        var skinned = groupedMeshes.Any(kvp =>
+        {
+            return kvp.Value.Any(m => m.UseBoneWeights);
+            // var flver = kvp.Key;
+            // return kvp.Value.Any(m =>
+            //     {
+            //         var layoutIndices = m.VertexBuffers.Select(a => a.LayoutIndex).ToList();
+            //         var layouts = flver.BufferLayouts.Where(l => layoutIndices.Contains(flver.BufferLayouts.IndexOf(l)))
+            //             .ToList();
+            //         return layouts.Any(l => l.Any(m => m.Semantic == FLVER.LayoutSemantic.BoneWeights));
+            //     }
+            // );
         });
+
         bool filterSkinned = false;
         if (skinned)
         {
@@ -64,16 +109,17 @@ public static partial class EditFlver
         }
 
         FLVER2MaterialInfoBank.MaterialDef? tempMatDef = null;
+
         var originalMatDef =
             srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
-                Path.GetFileNameWithoutExtension(d.MTD).Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
+                d.MTD.Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
         if (originalMatDef != null)
         {
             var matchDef = tarMatInfoBank.MaterialDefs.Values
                 .Where(d => d.Shader != null &&
                             d.Shader.Equals(originalMatDef.Shader, StringComparison.CurrentCultureIgnoreCase))
                 .OrderBy(d =>
-                    Path.GetFileNameWithoutExtension(d.MTD).Equals(mtd, StringComparison.CurrentCultureIgnoreCase))
+                    d.MTD.Equals(mtd, StringComparison.CurrentCultureIgnoreCase))
                 .ToList().FirstOrDefault();
             if (matchDef != null)
             {
@@ -85,7 +131,8 @@ public static partial class EditFlver
                 }
                 else
                 {
-                    var confirm = PromptPlus.Confirm($"Found matching target material: {name.PromptPlusEscape()}. Use this?")
+                    var confirm = PromptPlus
+                        .Confirm($"Found matching target material: {name.PromptPlusEscape()}. Use this?")
                         .Run();
                     if (!confirm.IsAborted && confirm.Value.IsYesResponseKey())
                     {
@@ -96,7 +143,7 @@ public static partial class EditFlver
             else if (auto)
             {
                 PromptPlus.KeyPress(
-                        $"Failed operation on {material.ToString(materials.IndexOf(material), srcMatInfoBank)}: no matching material found.")
+                        $"Failed operation on {srcMaterial.ToString(srcFlver, srcMatInfoBank)}: no matching material found.")
                     .Run();
                 return false;
             }
@@ -130,7 +177,11 @@ public static partial class EditFlver
         switch (nameDecision)
         {
             case MatNameDecision.UseNewMTD:
-                material.MTD = replaceMatDef.MTD;
+                foreach (FLVER2.Material material in allMaterials)
+                {
+                    material.MTD = replaceMatDef.MTD;
+                }
+
                 break;
             case MatNameDecision.KeepOldMTD:
                 break;
@@ -143,12 +194,20 @@ public static partial class EditFlver
                 if (mtdInput.IsAborted)
                 {
                     PromptPlus.WriteLine("Aborted; defaulting to new MATBIN.");
-                    material.MTD = replaceMatDef.MTD;
+                    foreach (FLVER2.Material material in allMaterials)
+                    {
+                        material.MTD = replaceMatDef.MTD;
+                    }
+
                     break;
                 }
 
                 nameKeep = mtdInput.Value;
-                material.MTD = $"{mtdInput.Value.Replace(".matxml", "")}.matxml";
+                foreach (FLVER2.Material material in allMaterials)
+                {
+                    material.MTD = $"{mtdInput.Value.Replace(".matxml", "")}.matxml";
+                }
+
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
@@ -158,43 +217,49 @@ public static partial class EditFlver
 
         PromptPlus.WriteLine("Making changes from this point on, do not abort.");
 
-        // Handle GXList
+// Handle GXList
         FLVER2.GXList gxList = new();
         gxList.AddRange(tarMatInfoBank.GetDefaultGXItemsForMTD(replaceMatDef.MTD).ToList());
 
-        FLVER2.GXList? existingGxList = null;
 
-        // existingGxList = flver.GXLists.FirstOrDefault(l =>
-        // {
-        //     if (l.TerminatorID != gxList.TerminatorID) return false;
-        //     if (l.TerminatorLength != gxList.TerminatorLength) return false;
-        //     return l.Count == gxList.Count && l.All(i =>
-        //     {
-        //         var j = gxList[l.IndexOf(i)];
-        //         return i.ID == j.ID && i.Data.SequenceEqual(j.Data) &&
-        //                i.Unk04 == j.Unk04;
-        //     });
-        // });
-
-        if (existingGxList != null)
+        foreach (FLVER2 flver in flvers.Values)
         {
-            PromptPlus.WriteLine("Existing GXList matches, not changing.");
-            gxList = existingGxList;
-        }
-        else
-        {
-            PromptPlus.WriteLine("Adding new GXList.");
-            flver.GXLists.Add(gxList);
-        }
+            FLVER2.GXList? existingGxList = null;
+            existingGxList = flver.GXLists.FirstOrDefault(l =>
+            {
+                if (l.TerminatorID != gxList.TerminatorID) return false;
+                if (l.TerminatorLength != gxList.TerminatorLength) return false;
+                return l.Count == gxList.Count && l.All(i =>
+                {
+                    var j = gxList[l.IndexOf(i)];
+                    return i.ID == j.ID && i.Data.SequenceEqual(j.Data) &&
+                           i.Unk04 == j.Unk04;
+                });
+            });
 
-        material.GXIndex = flver.GXLists.IndexOf(gxList);
+            if (existingGxList != null)
+            {
+                // PromptPlus.WriteLine("Existing GXList matches, not changing.");
+                gxList = existingGxList;
+            }
+            else
+            {
+                // PromptPlus.WriteLine("Adding new GXList.");
+                flver.GXLists.Add(gxList);
+            }
 
-        material.Textures =
-            replaceMatDef.TextureChannels.Values.Select(x => new FLVER2.Texture { ParamName = x }).ToList();
+            foreach (FLVER2.Material material in groupedMaterials[flver])
+            {
+                material.GXIndex = flver.GXLists.IndexOf(gxList);
+
+                material.Textures =
+                    replaceMatDef.TextureChannels.Values.Select(x => new FLVER2.Texture { ParamName = x }).ToList();
+            }
+        }
 
         var acceptableBufferDeclarations = replaceMatDef.AcceptableVertexBufferDeclarations;
 
-        var uniqueBufferMeshGroups = meshes
+        var uniqueBufferMeshGroups = allMeshes
             .GroupBy(m =>
             {
                 var l = m.VertexBuffers;
@@ -207,20 +272,17 @@ public static partial class EditFlver
 
         foreach (IGrouping<string, FLVER2.Mesh> group in uniqueBufferMeshGroups)
         {
-            var exampleMesh = group.First(m => m.Vertices.Count > 0);
+            var exampleFlver = flvers.Values.First(f => f.Meshes.Contains(group.First(m => m.Vertices.Count > 0)));
+            var exampleMesh = groupedMeshes[exampleFlver].First(m => m.Vertices.Count > 0);
             var buffers = exampleMesh.VertexBuffers;
-            var layouts = buffers.Select(b => flver.BufferLayouts[b.LayoutIndex]).ToList();
+            var layouts = buffers.Select(b => exampleFlver.BufferLayouts[b.LayoutIndex]).ToList();
             var members = layouts.SelectMany(a => a).ToList();
-            var groupIsSkinned = members.Any(m => m.Semantic == FLVER.LayoutSemantic.BoneWeights);
+            var groupIsSkinned = group.Any(m => m.UseBoneWeights);
 
             FLVER2MaterialInfoBank.VertexBufferDeclaration declaration = acceptableBufferDeclarations.Where(d =>
             {
-                if (groupIsSkinned && !d.Buffers.Any(b => b.Any(m => m.Semantic == FLVER.LayoutSemantic.BoneWeights)))
-                {
-                    return false;
-                }
-
-                return true;
+                var skinCompatible = d.Buffers.Any(b => b.Any(m => m.Semantic == FLVER.LayoutSemantic.BoneWeights));
+                return groupIsSkinned ? skinCompatible : !skinCompatible;
             }).OrderBy(d =>
             {
                 var accMembers = d.Buffers.SelectMany(b => b).ToList();
@@ -239,7 +301,8 @@ public static partial class EditFlver
                 var exampleVertex = exampleMesh.Vertices.First();
                 foreach (FLVER.LayoutSemantic semantic in new[]
                          {
-                            FLVER.LayoutSemantic.Position, FLVER.LayoutSemantic.Normal, FLVER.LayoutSemantic.UV, FLVER.LayoutSemantic.Tangent, FLVER.LayoutSemantic.VertexColor
+                             FLVER.LayoutSemantic.Position, FLVER.LayoutSemantic.Normal, FLVER.LayoutSemantic.UV,
+                             FLVER.LayoutSemantic.Tangent, FLVER.LayoutSemantic.VertexColor
                          })
                 {
                     int targetCount = declaration.Buffers.SelectMany(b => b).Where(c => c.Semantic == semantic)
@@ -331,21 +394,28 @@ public static partial class EditFlver
                 }
             }
 
-            List<int> layoutIndices = FlverUtils.GetLayoutIndices(flver, declaration.Buffers);
-            foreach (FLVER2.Mesh mesh in group)
+            foreach (FLVER2 flver in flvers.Values)
             {
-                mesh.VertexBuffers = layoutIndices.Select(x => new FLVER2.VertexBuffer(x)).ToList();
-                foreach (var v in mesh.Vertices)
+                List<int> layoutIndices = FlverUtils.GetLayoutIndices(flver, declaration.Buffers);
+                foreach (FLVER2.Mesh mesh in group)
                 {
-                    FlverUtils.PadVertex(v, declaration.Buffers);
+                    mesh.VertexBuffers = layoutIndices.Select(x => new FLVER2.VertexBuffer(x)).ToList();
+                    foreach (var v in mesh.Vertices)
+                    {
+                        FlverUtils.PadVertex(v, declaration.Buffers);
+                    }
                 }
-            }
 
-            FlverUtils.AdjustBoneIndexBufferSize(flver, declaration.Buffers);
+                FlverUtils.AdjustBoneIndexBufferSize(flver, declaration.Buffers);
+            }
         }
 
         if (!auto)
-            Program.SaveFlver(ref flver, ref filePath, true);
+        {
+            PromptPlus.WriteLine("Operation complete.");
+            Program.SaveFlvers(flvers, true);
+        }
+
         return true;
     }
 }

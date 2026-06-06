@@ -5,7 +5,7 @@ namespace ERMaterialConvertTool.Modes;
 
 public static class ConvertFlver
 {
-    public static void Perform(ref FLVER2 flver, ref string filePath)
+    public static void Perform(ref FLVER2 flver, ref string filePath, bool prompt = true)
     {
         flver = Program.LoadFlver(ref filePath);
         if (flver == null || filePath == null) return;
@@ -23,14 +23,14 @@ public static class ConvertFlver
             {
                 material.Index = flver.Materials.IndexOf(material);
             }
-            Program.SaveFlver(ref flver, ref filePath);
+            Program.SaveFlver(ref flver, ref filePath, prompt);
         }
         else if (isNightreign)
         {
             PromptPlus.WriteLine("FLVER is from Nightreign; changing some header values.");
             flver.Header.Unk68 = 4;
             flver.Header.Unk74 = 0;
-            Program.SaveFlver(ref flver, ref filePath);
+            Program.SaveFlver(ref flver, ref filePath, prompt);
         }
         else
         {
