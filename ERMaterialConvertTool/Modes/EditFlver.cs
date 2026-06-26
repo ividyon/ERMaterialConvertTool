@@ -12,6 +12,7 @@ public static partial class EditFlver
         [Display(Name = "Convert materials to shader")] ChangeMaterials,
         [Display(Name = "Auto-convert materials with known shaders")] BulkConvertExistingMaterials,
         [Display(Name = "Rearrange UVs")] RearrangeUVs,
+        [Display(Name = "List used MATBINs")] ListUsedMatbins,
         // [Display(Name = "Remove motion blur")] RemoveMotionBlur,
         // [Display(Name = "Save FLVER")] Save,
         // [Display(Name = "Import and apply JSON")] Import,
@@ -53,6 +54,12 @@ public static partial class EditFlver
                         case FlverDecision.RearrangeUVs:
                             RearrangeUVs(ref flver, ref filePath);
                             break;
+                        case FlverDecision.ListUsedMatbins:
+                            var mtds = flver.Materials.Select(m => Path.GetFileNameWithoutExtension(m.MTD))
+                                .DistinctBy(m => m.ToLower()).OrderBy(m => m).ToList();
+                            PromptPlus.WriteLine($"\n{string.Join("\n", mtds)}\n");
+                            PromptPlus.KeyPress("Press any key to continue...");
+                            continue;
                         // case FlverDecision.RemoveMotionBlur:
                         //     RemoveMotionBlur(ref flver, ref filePath);
                         //     break;

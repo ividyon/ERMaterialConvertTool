@@ -5,7 +5,7 @@ namespace ERMaterialConvertTool.Modes;
 
 public static partial class BatchFlver
 {
-    public static bool ChangeMaterials(Dictionary<string, FLVER2> dict)
+    public static bool ChangeMaterials(IDictionary<string, FLVER2> dict)
     {
         EditFlver.MatNameDecision matDecisionKeep = EditFlver.MatNameDecision.KeepOldMTD;
         string matNameKeep = "";

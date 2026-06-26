@@ -5,7 +5,7 @@ namespace ERMaterialConvertTool.Modes;
 
 public static partial class BatchFlver
 {
-    public static void ConvertToER(Dictionary<string, FLVER2> dict)
+    public static bool ConvertToER(IDictionary<string, FLVER2> dict)
     {
         foreach ((string filePath, FLVER2 flver) in dict)
         {
@@ -15,5 +15,6 @@ public static partial class BatchFlver
         }
 
         PromptPlus.KeyPress("Press any key to continue...").Run();
+        return true;
     }
 }

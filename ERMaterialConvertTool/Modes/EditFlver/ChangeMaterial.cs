@@ -251,9 +251,13 @@ public static partial class EditFlver
             foreach (FLVER2.Material material in groupedMaterials[flver])
             {
                 material.GXIndex = flver.GXLists.IndexOf(gxList);
-
-                material.Textures =
-                    replaceMatDef.TextureChannels.Values.Select(x => new FLVER2.Texture { ParamName = x }).ToList();
+                var exampleParamNames = replaceMatDef.TextureChannels.Select(a => a.Value.ToLower()).ToList();
+                var equal = material.Textures.Count == exampleParamNames.Count && material.Textures.All(t => exampleParamNames.Contains(t.ParamName.ToLower()));
+                if (!equal)
+                {
+                    material.Textures =
+                        replaceMatDef.TextureChannels.Values.Select(x => new FLVER2.Texture { ParamName = x }).ToList();
+                }
             }
         }
 
@@ -272,6 +276,11 @@ public static partial class EditFlver
 
         foreach (IGrouping<string, FLVER2.Mesh> group in uniqueBufferMeshGroups)
         {
+            if (uniqueBufferMeshGroups.Count > 1)
+            {
+                PromptPlus.WriteLine($"Processing buffer group {uniqueBufferMeshGroups.IndexOf(group) + 1}...");
+            }
+            var groupFlvers = flvers.Values.Where(f => f.Meshes.Any(m => group.Contains(m))).ToList();
             var exampleFlver = flvers.Values.First(f => f.Meshes.Contains(group.First(m => m.Vertices.Count > 0)));
             var exampleMesh = groupedMeshes[exampleFlver].First(m => m.Vertices.Count > 0);
             var buffers = exampleMesh.VertexBuffers;
@@ -363,7 +372,7 @@ public static partial class EditFlver
                             targets.Add(selectRun.Value);
                         }
 
-                        PromptPlus.WriteLine("Applying new UV setup to all affected vertices...");
+                        PromptPlus.WriteLine($"Applying new {semantic.ToString()} setup to all affected vertices...");
                         foreach (FLVER2.Mesh mesh in group)
                         {
                             foreach (FLVER.Vertex vertex in mesh.Vertices)
@@ -394,20 +403,25 @@ public static partial class EditFlver
                 }
             }
 
-            foreach (FLVER2 flver in flvers.Values)
+            PromptPlus.WriteLine($"Padding vertices in {groupFlvers.Count} FLVERs...");
+            Parallel.ForEach(groupFlvers, flver =>
             {
+                var meshes = flver.Meshes.Where(m => group.Contains(m)).ToList();
                 List<int> layoutIndices = FlverUtils.GetLayoutIndices(flver, declaration.Buffers);
-                foreach (FLVER2.Mesh mesh in group)
+                foreach (FLVER2.Mesh mesh in meshes)
                 {
                     mesh.VertexBuffers = layoutIndices.Select(x => new FLVER2.VertexBuffer(x)).ToList();
-                    foreach (var v in mesh.Vertices)
+                    Parallel.ForEach(mesh.Vertices.Chunk(250), chunk =>
                     {
-                        FlverUtils.PadVertex(v, declaration.Buffers);
-                    }
+                        foreach (var v in chunk)
+                        {
+                            FlverUtils.PadVertex(v, declaration.Buffers);
+                        }
+                    });
                 }
 
                 FlverUtils.AdjustBoneIndexBufferSize(flver, declaration.Buffers);
-            }
+            });
         }
 
         if (!auto)

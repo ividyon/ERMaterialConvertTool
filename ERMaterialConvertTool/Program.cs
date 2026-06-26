@@ -97,12 +97,12 @@ class Program
             if (confirm.IsAborted || confirm.Value.IsNoResponseKey()) return;
         }
 
-        foreach ((string filePath, FLVER2 flver) in flvers)
+        Parallel.ForEach(flvers, pair =>
         {
-            string p = filePath;
-            var f = flver;
+            string p = pair.Key;
+            var f = pair.Value;
             SaveFlver(ref f, ref p);
-        }
+        });
     }
     internal static void SaveFlver(ref FLVER2 flver, ref string filePath, bool prompt = false)
     {

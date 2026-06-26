@@ -5,7 +5,7 @@ namespace ERMaterialConvertTool.Modes;
 
 public static partial class BatchFlver
 {
-    public static bool BulkConvertMaterials(Dictionary<string, FLVER2> dict)
+    public static bool BulkConvertMaterials(IDictionary<string, FLVER2> dict)
     {
         PromptPlus.WriteLine(
             "This tool will automatically convert every material which has a fitting ER shader, without touching the MATBIN name.");
@@ -14,13 +14,31 @@ public static partial class BatchFlver
         var erMatInfoBank = MatInfoBank.GetERMatInfoBank();
         var erShaders = erMatInfoBank.MaterialDefs.Values.Where(d => d.Shader != null).Select(d => d.Shader.ToLower()).Distinct().ToList();
 
-        var materialsByShader = dict.Values.SelectMany(f => f.Materials)
+        var allMaterialsByShader = dict.Values.SelectMany(f => f.Materials)
             .GroupBy(m =>
                 allMatInfoBank.MaterialDefs.Values.FirstOrDefault(md =>
-                    md.MTD.Equals(m.MTD, StringComparison.InvariantCultureIgnoreCase))?.Shader.ToLower())
-            .Where(g => g.Key != null && erShaders.Contains(g.Key)).OrderByDescending(g => g.Count()).ThenBy(g => g.Key)
+                {
+                    return md.MTD.Equals(m.MTD, StringComparison.InvariantCultureIgnoreCase);
+                })?.Shader.ToLower()).OrderByDescending(g => g.Count()).ThenBy(g => g.Key)
             .ToDictionary(g => g.Key!, g => g.ToList());
 
+        var materialsByShader = allMaterialsByShader
+            .Where(g => erShaders.Contains(g.Key)).ToDictionary();
+
+        var diff = allMaterialsByShader.Count - materialsByShader.Count;
+        if (diff > 0)
+        {
+            var diffMaterials = allMaterialsByShader.Except(materialsByShader).SelectMany(d => d.Value).ToList();
+            var diffFlvers = dict.Where(kvp => kvp.Value.Materials.Any(m => diffMaterials.Contains(m))).Select(a => a.Key).ToList();
+            PromptPlus.WriteLine($"{diff} shaders do not exist in ER.");
+            PromptPlus.WriteLine($"They are located in FLVERs:\n\n{string.Join("\n", diffFlvers.Select(a => $"- {Path.GetFileNameWithoutExtension(a)}"))}\n");
+        }
+
+        PromptPlus.WriteLine($"Breakdown of shaders:");
+        foreach ((string shaderName, List<FLVER2.Material> materials) in materialsByShader)
+        {
+            PromptPlus.WriteLine($"- {shaderName} ({string.Join($", ", materials.DistinctBy(m => m.Name).Select(a => a.Name))})");
+        }
         var multiSelect = PromptPlus.MultiSelect<string>("Select shaders to bulk convert")
             .AddItems(materialsByShader.Keys)
             .AddDefault(materialsByShader.Keys)
@@ -57,7 +75,11 @@ public static partial class BatchFlver
             {
                 saveDict.TryAdd(pair.Key, pair.Value);
             }
-            EditFlver.ChangeMaterial(filteredDict, materials.First(), allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
+
+            foreach (FLVER2.Material material in materials)
+            {
+                EditFlver.ChangeMaterial(filteredDict, material, allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
+            }
         }
         Program.SaveFlvers(saveDict, true);
 

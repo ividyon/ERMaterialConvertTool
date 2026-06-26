@@ -205,7 +205,7 @@
       "soulsassetpipeline": {
         "type": "Project",
         "dependencies": {
-          "SoulsFormats": "[1.1.0.2, )"
+          "SoulsFormats": "[1.1.0.3, )"
         }
       },
       "soulsformats": {

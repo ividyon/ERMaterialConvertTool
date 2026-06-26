@@ -32,6 +32,12 @@ public static partial class EditFlver
             return matchDefs.Any();
         }).ToList();
 
+        var diff = materials.Count - matchingMaterials.Count;
+        if (diff > 0)
+        {
+            PromptPlus.WriteLine($"{diff} materials do not have a matching ER shader.");
+        }
+
         var multiSelect = PromptPlus.MultiSelect<FLVER2.Material>("Select materials to bulk convert")
             .AddItems(matchingMaterials)
             .AddDefault(matchingMaterials)

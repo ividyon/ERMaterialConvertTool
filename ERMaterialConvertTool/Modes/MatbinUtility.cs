@@ -8,10 +8,8 @@ public static partial class MatbinUtility
 {
     internal enum BatchFilesMode
     {
-        [Display(Name = "Select single file")] SelectSingleFile,
-        [Display(Name = "Select files")] SelectFiles,
-        [Display(Name = "Process files in folder")] SelectFolder,
-        [Display(Name = "Process files in folder and subfolders")] SelectFolderRecursive
+        [Display(Name = "Select file(s)")] SelectFiles,
+        [Display(Name = "Select all files in folder (and subfolders)")] SelectFolderRecursive
     }
 
     internal enum MatbinAction
@@ -29,13 +27,6 @@ public static partial class MatbinUtility
         List<string> filePaths = new();
         switch (fileModeSelect.Value)
         {
-            case BatchFilesMode.SelectSingleFile:
-                PromptPlus.KeyPress("Next up, please select the file you wish to process.")
-                    .Run();
-                var filePicker = NativeFileDialogSharp.Dialog.FileOpen("matbin");
-                if (filePicker == null || !filePicker.IsOk) return;
-                filePaths = filePicker.Paths.ToList();
-                break;
             case BatchFilesMode.SelectFiles:
                 PromptPlus.KeyPress("Next up, please select the files you wish to process.")
                     .Run();
@@ -43,16 +34,13 @@ public static partial class MatbinUtility
                 if (filesPicker == null || !filesPicker.IsOk) return;
                 filePaths = filesPicker.Paths.ToList();
                 break;
-            case BatchFilesMode.SelectFolder:
             case BatchFilesMode.SelectFolderRecursive:
                 PromptPlus.KeyPress("Next up, please select the folder containing the files you wish to process.")
                     .Run();
                 var folderPicker = NativeFileDialogSharp.Dialog.FolderPicker();
                 if (folderPicker == null || !folderPicker.IsOk) return;
                 filePaths = Directory.GetFiles(folderPicker.Path, "*.matbin",
-                    fileModeSelect.Value == BatchFilesMode.SelectFolderRecursive
-                        ? SearchOption.AllDirectories
-                        : SearchOption.TopDirectoryOnly).ToList();
+                    SearchOption.AllDirectories).ToList();
                 break;
             default:
                 throw new ArgumentOutOfRangeException();
