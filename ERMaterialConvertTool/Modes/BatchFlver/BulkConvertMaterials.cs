@@ -76,10 +76,7 @@ public static partial class BatchFlver
                 saveDict.TryAdd(pair.Key, pair.Value);
             }
 
-            foreach (FLVER2.Material material in materials)
-            {
-                EditFlver.ChangeMaterial(filteredDict, material, allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
-            }
+            EditFlver.ChangeMaterial(filteredDict, materials.First(), allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
         }
         Program.SaveFlvers(saveDict, true);
 

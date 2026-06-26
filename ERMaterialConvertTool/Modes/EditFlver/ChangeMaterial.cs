@@ -35,13 +35,31 @@ public static partial class EditFlver
         if (flvers.Count > 1)
             single = false;
 
+        var srcShader = srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
+            srcMaterial.MTD.Equals(d.MTD, StringComparison.CurrentCultureIgnoreCase))?.Shader;
+        if (srcShader == null)
+        {
+            PromptPlus.KeyPress(
+                    $"Failed operation on {srcMaterial.Name}: no matching shader found.")
+                .Run();
+            return false;
+        }
+
         var srcFlver = flvers.Values.First(f => f.Materials.Contains(srcMaterial));
         var mtd = srcMaterial.MTD;
         Dictionary<FLVER2, List<FLVER2.Material>> groupedMaterials = single
             ? new()
                 { { srcFlver, new() { srcMaterial } } }
             : flvers.Values.ToDictionary(f => f,
-                f => f.Materials.Where(m => m.MTD.Equals(srcMaterial.MTD, StringComparison.CurrentCultureIgnoreCase))
+                f => f.Materials.Where(m =>
+                    {
+                        var mtd = m.MTD;
+                        var originalMatDef =
+                            srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
+                                d.MTD.Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
+
+                        return originalMatDef?.Shader.Equals(srcShader, StringComparison.CurrentCultureIgnoreCase) ?? false;
+                    })
                     .ToList());
         var groupedIndices =
             groupedMaterials.ToDictionary(kvp => kvp.Key,
