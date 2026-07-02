@@ -37,7 +37,7 @@ public static partial class EditFlver
 
         var srcShader = srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
             srcMaterial.MTD.Equals(d.MTD, StringComparison.CurrentCultureIgnoreCase))?.Shader;
-        if (srcShader == null)
+        if (!single && srcShader == null)
         {
             PromptPlus.KeyPress(
                     $"Failed operation on {srcMaterial.Name}: no matching shader found.")
