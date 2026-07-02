@@ -14,9 +14,6 @@ public static partial class BatchFlver
             var mergedBank = MatInfoBank.GetMergedMatInfoBank();
             var erBank = MatInfoBank.GetERMatInfoBank();
 
-            // var materialsByMtd = dict.Values.SelectMany(f => f.Materials)
-            //     .GroupBy(m => m.MTD.ToLower()).ToDictionary(g => g.Key, g => g.ToList());
-
             var materialsByShader = dict.Values.SelectMany(f => f.Materials)
                 .GroupBy(m =>
                     mergedBank.MaterialDefs.Values.FirstOrDefault(md =>
@@ -39,8 +36,8 @@ public static partial class BatchFlver
 
             var filteredDict = dict.Where(kvp => mats.Any(m => kvp.Value.Materials.Contains(m))).ToDictionary();
             PromptPlus.WriteLine($"Processing {filteredDict.Count} FLVERs containing materials with that shader...");
-            EditFlver.ChangeMaterial(filteredDict, mats.First(), mergedBank, erBank, false, ref matDecisionKeep,
-                ref matNameKeep, true);
+            EditFlver.ChangeMaterial(filteredDict, mats.First(), mergedBank, erBank, EditFlver.GroupBy.Shader, true, ref matDecisionKeep,
+                ref matNameKeep);
         }
         return true;
     }

@@ -19,51 +19,80 @@ public static partial class EditFlver
         CustomName,
     }
 
+    public enum GroupBy
+    {
+        [Display(Name = "Single")] Single,
+
+        [Display(Name = "Shader")] Shader,
+
+        [Display(Name = "Material name")] MTD,
+    }
+
     public static bool ChangeMaterial(FLVER2 flver, string filePath, FLVER2.Material srcMaterial,
-        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank, bool single,
-        ref MatNameDecision mtdDecisionKeep, ref string? nameKeep, bool auto = false)
+        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank, GroupBy groupMode, bool auto,
+        ref MatNameDecision mtdDecisionKeep, ref string? nameKeep)
     {
         Dictionary<string, FLVER2> dict = new() { { filePath, flver } };
-        return ChangeMaterial(dict, srcMaterial, srcMatInfoBank, tarMatInfoBank, single, ref mtdDecisionKeep,
-            ref nameKeep, auto);
+        return ChangeMaterial(dict, srcMaterial, srcMatInfoBank, tarMatInfoBank, groupMode, auto, ref mtdDecisionKeep,
+            ref nameKeep);
     }
 
     public static bool ChangeMaterial(Dictionary<string, FLVER2> flvers, FLVER2.Material srcMaterial,
-        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank, bool single,
-        ref MatNameDecision mtdDecisionKeep, ref string? nameKeep, bool auto = false)
+        FLVER2MaterialInfoBank srcMatInfoBank, FLVER2MaterialInfoBank tarMatInfoBank, GroupBy groupMode, bool auto,
+        ref MatNameDecision mtdDecisionKeep, ref string? nameKeep)
     {
-        if (flvers.Count > 1)
-            single = false;
-
-        var srcShader = srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
-            srcMaterial.MTD.Equals(d.MTD, StringComparison.CurrentCultureIgnoreCase))?.Shader;
-        if (!single && srcShader == null)
+        if (flvers.Count > 1 && groupMode == GroupBy.Single)
         {
-            PromptPlus.KeyPress(
-                    $"Failed operation on {srcMaterial.Name}: no matching shader found.")
-                .Run();
-            return false;
+            groupMode = GroupBy.Shader;
         }
 
         var srcFlver = flvers.Values.First(f => f.Materials.Contains(srcMaterial));
         var mtd = srcMaterial.MTD;
-        Dictionary<FLVER2, List<FLVER2.Material>> groupedMaterials = single
-            ? new()
-                { { srcFlver, new() { srcMaterial } } }
-            : flvers.Values.ToDictionary(f => f,
-                f => f.Materials.Where(m =>
-                    {
-                        var mtd = m.MTD;
-                        var originalMatDef =
-                            srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
-                                d.MTD.Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
 
-                        return originalMatDef?.Shader.Equals(srcShader, StringComparison.CurrentCultureIgnoreCase) ?? false;
-                    })
-                    .ToList());
+        Dictionary<FLVER2, List<FLVER2.Material>> groupedMaterials;
+        switch (groupMode)
+        {
+            case GroupBy.Single:
+                groupedMaterials = new()
+                    { { srcFlver, new() { srcMaterial } } };
+                break;
+            case GroupBy.Shader:
+                var srcShader = srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
+                    srcMaterial.MTD.Equals(d.MTD, StringComparison.CurrentCultureIgnoreCase))?.Shader;
+                if (srcShader == null)
+                {
+                    PromptPlus.KeyPress(
+                            $"Failed operation on {srcMaterial.Name}: no matching shader found.")
+                        .Run();
+                    return false;
+                }
+                groupedMaterials = flvers.Values.ToDictionary(f => f,
+                    f => f.Materials.Where(m =>
+                        {
+                            var mtd = m.MTD;
+                            var originalMatDef =
+                                srcMatInfoBank.MaterialDefs.Values.FirstOrDefault(d =>
+                                    d.MTD.Equals(mtd, StringComparison.CurrentCultureIgnoreCase));
+
+                            return originalMatDef?.Shader.Equals(srcShader,
+                                StringComparison.CurrentCultureIgnoreCase) ?? false;
+                        })
+                        .ToList());
+                break;
+            case GroupBy.MTD:
+                groupedMaterials = flvers.Values.ToDictionary(f => f,
+                    f => f.Materials
+                        .Where(m => m.MTD.Equals(srcMaterial.MTD, StringComparison.CurrentCultureIgnoreCase))
+                        .ToList());
+                break;
+            default:
+                throw new ArgumentOutOfRangeException(nameof(groupMode), groupMode, null);
+        }
+
         var groupedIndices =
             groupedMaterials.ToDictionary(kvp => kvp.Key,
                 kvp => kvp.Value.Select(m => kvp.Key.Materials.IndexOf(m)).ToList());
+
         var groupedMeshes = groupedIndices.ToDictionary(kvp => kvp.Key,
             kvp => kvp.Key.Meshes.Where(m => kvp.Value.Contains(m.MaterialIndex)).ToList());
 
@@ -74,11 +103,13 @@ public static partial class EditFlver
         {
             return kvp.Value.Select(m => m.ToString(kvp.Key, srcMatInfoBank));
         }).ToList();
-        if (single)
+
+        if (groupMode == GroupBy.Single)
         {
             PromptPlus.WriteLine(
                 $"Selected material: {srcMaterial.ToString(srcFlver, srcMatInfoBank)}");
         }
+
         else
         {
             PromptPlus.WriteLine(
@@ -158,15 +189,16 @@ public static partial class EditFlver
                     }
                 }
             }
-            else if (auto)
-            {
-                PromptPlus.KeyPress(
-                        $"Failed operation on {srcMaterial.ToString(srcFlver, srcMatInfoBank)}: no matching material found.")
-                    .Run();
-                return false;
-            }
+            // else if (auto)
+            // {
+            //     PromptPlus.KeyPress(
+            //             $"Failed operation on {srcMaterial.ToString(srcFlver, srcMatInfoBank)}: no matching material found.")
+            //         .Run();
+            //     return false;
+            // }
         }
 
+        bool ask = false;
         if (tempMatDef == null)
         {
             var select = PromptPlus
@@ -177,12 +209,13 @@ public static partial class EditFlver
                 .Run();
             if (select.IsAborted) return false;
             tempMatDef = select.Value;
+            ask = true;
         }
 
         FLVER2MaterialInfoBank.MaterialDef replaceMatDef = tempMatDef;
 
         MatNameDecision nameDecision = MatNameDecision.KeepOldMTD;
-        if (!auto)
+        if (!auto || ask)
         {
             var mtdDecisionPrompt = PromptPlus
                 .Select<MatNameDecision>("Which MATBIN file to point the material at?")
@@ -270,7 +303,8 @@ public static partial class EditFlver
             {
                 material.GXIndex = flver.GXLists.IndexOf(gxList);
                 var exampleParamNames = replaceMatDef.TextureChannels.Select(a => a.Value.ToLower()).ToList();
-                var equal = material.Textures.Count == exampleParamNames.Count && material.Textures.All(t => exampleParamNames.Contains(t.ParamName.ToLower()));
+                var equal = material.Textures.Count == exampleParamNames.Count &&
+                            material.Textures.All(t => exampleParamNames.Contains(t.ParamName.ToLower()));
                 if (!equal)
                 {
                     material.Textures =
@@ -298,6 +332,7 @@ public static partial class EditFlver
             {
                 PromptPlus.WriteLine($"Processing buffer group {uniqueBufferMeshGroups.IndexOf(group) + 1}...");
             }
+
             var groupFlvers = flvers.Values.Where(f => f.Meshes.Any(m => group.Contains(m))).ToList();
             var exampleFlver = flvers.Values.First(f => f.Meshes.Contains(group.First(m => m.Vertices.Count > 0)));
             var exampleMesh = groupedMeshes[exampleFlver].First(m => m.Vertices.Count > 0);

@@ -76,7 +76,7 @@ public static partial class BatchFlver
                 saveDict.TryAdd(pair.Key, pair.Value);
             }
 
-            EditFlver.ChangeMaterial(filteredDict, materials.First(), allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
+            EditFlver.ChangeMaterial(filteredDict, materials.First(), allMatInfoBank, erMatInfoBank, EditFlver.GroupBy.Shader, true, ref decision, ref name);
         }
         Program.SaveFlvers(saveDict, true);
 

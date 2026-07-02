@@ -61,7 +61,7 @@ public static partial class EditFlver
         string? name = null;
         foreach (FLVER2.Material material in matchingMaterials)
         {
-            ChangeMaterial(flver, filePath, material, allMatInfoBank, erMatInfoBank, true, ref decision, ref name, true);
+            ChangeMaterial(flver, filePath, material, allMatInfoBank, erMatInfoBank, GroupBy.Shader, true, ref decision, ref name);
         }
         Program.SaveFlver(ref flver, ref filePath, true);
 

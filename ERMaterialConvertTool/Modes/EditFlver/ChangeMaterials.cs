@@ -7,16 +7,6 @@ namespace ERMaterialConvertTool.Modes;
 
 public static partial class EditFlver
 {
-    private enum MaterialDecision
-    {
-        [Display(Name = "Change single material")] ChangeMaterial,
-        [Display(Name = "Change all materials related by shader")] ChangeMaterialsByShader,
-
-        // [Display(Name = "Change to NR material")] ChangeToNRMaterial,
-
-        // [Display(Name = "Edit facesets")] EditFacesets,
-    }
-
     private static void ChangeMaterials(ref FLVER2 flver, ref string filePath)
     {
         bool materialLoop = true;
@@ -49,43 +39,40 @@ public static partial class EditFlver
             FLVER2.Material material = matSelect.Value;
 
             var materialDecision =
-                PromptPlus.Select<MaterialDecision>("Choose action to perform (press Esc to go back)").Run();
+                PromptPlus.Select<GroupBy>("Choose action to perform (press Esc to go back)").Run();
             if (materialDecision.IsAborted)
                 continue;
 
             FLVER2MaterialInfoBank matInfoBank;
             switch (materialDecision.Value)
             {
-                case MaterialDecision.ChangeMaterial:
+                case GroupBy.Single:
                     matInfoBank = MatInfoBank.GetERMatInfoBank();
-                    if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, true, ref matNameDecisionKeep, ref name))
+                    if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, GroupBy.Single, false, ref matNameDecisionKeep, ref name))
                     {
                         PromptPlus.WriteLine("");
                         PromptPlus.WriteLine("Material conversion complete.");
                         PromptPlus.WriteLine("");
                     }
                     break;
-                case MaterialDecision.ChangeMaterialsByShader:
+                case GroupBy.Shader:
                     matInfoBank = MatInfoBank.GetERMatInfoBank();
-                    if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, false, ref matNameDecisionKeep, ref name))
+                    if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, GroupBy.Shader, false, ref matNameDecisionKeep, ref name))
                     {
                         PromptPlus.WriteLine("");
                         PromptPlus.WriteLine("Materials conversion complete.");
                         PromptPlus.WriteLine("");
                     }
                     break;
-                // case MaterialDecision.ChangeToNRMaterial:
-                //     matInfoBank = MatInfoBank.GetNRMatInfoBank();
-                //     if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, ref matNameDecisionKeep))
-                //     {
-                //         PromptPlus.WriteLine();
-                //         PromptPlus.WriteLine("Material conversion complete.");
-                //         PromptPlus.WriteLine();
-                //     }
-                //     break;
-                // case MaterialDecision.EditFacesets:
-                //     PromptPlus.KeyPress("NYI").Run();
-                //     continue;
+                case GroupBy.MTD:
+                    matInfoBank = MatInfoBank.GetERMatInfoBank();
+                    if (ChangeMaterial(flver, filePath, material, mergedBank, matInfoBank, GroupBy.MTD, false, ref matNameDecisionKeep, ref name))
+                    {
+                        PromptPlus.WriteLine("");
+                        PromptPlus.WriteLine("Materials conversion complete.");
+                        PromptPlus.WriteLine("");
+                    }
+                    break;
                 default:
                     throw new ArgumentOutOfRangeException();
             }
