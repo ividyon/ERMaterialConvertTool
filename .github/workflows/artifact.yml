@@ -17,6 +17,9 @@ on:
   pull_request:
     branches: [ "main" ]
 
+permissions:
+  contents: write
+
 env:
   DOTNET_VERSION: '9.0.301'
   NUGET_PACKAGES: ${{ github.workspace }}/.nuget/packages
@@ -35,18 +38,19 @@ jobs:
         uses: actions/cache@v3
         with:
           path: ${{ github.workspace }}/.dotnet
-          key: ${{ runner.os }}-dotnet
-          restore-keys: |
-            ${{ runner.os }}-dotnet
+          key: ${{ runner.os }}-dotnet-${{ env.DOTNET_VERSION }}
 
       - name: NuGet cache
         id: cache-nuget
         uses: actions/cache@v3
         with:
-          path: ${{ github.workspace }}/.nuget/packages
-          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.lock.json') }}
-          restore-keys: |
-            ${{ runner.os }}-nuget-
+          path: |
+            ${{ github.workspace }}/.nuget/packages
+            ${{ github.workspace }}/packages
+            ${{ github.workspace }}/ERMaterialConvertTool/**/obj
+            ${{ github.workspace }}/SoulsAssetPipeline/**/obj
+            ${{ github.workspace }}/SoulsFormatsNEXT/**/obj
+          key: ${{ runner.os }}-nuget-${{ hashFiles('**/packages.win-x64.lock.json') }}
 
       - name: Setup .NET
         if: ${{ steps.cache-dotnet-core.outputs.cache-hit != 'true' }}
