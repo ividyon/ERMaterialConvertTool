@@ -16,7 +16,8 @@ public static partial class BatchFlver
     internal enum BatchOperationMode
     {
         [Display(Name = "Convert FLVER to ER")] ConvertToER,
-        [Display(Name = "Change materials by shader")] ChangeMaterials,
+        [Display(Name = "Change materials by shader")] ChangeMaterialsByShader,
+        [Display(Name = "Change materials by material name")] ChangeMaterialsByMTD,
         [Display(Name = "Auto-convert materials with known shaders")] BulkConvertExistingMaterials,
         [Display(Name = "List MATBINs used in the files")] ListUsedMatbins,
     }
@@ -69,8 +70,11 @@ public static partial class BatchFlver
                 case BatchOperationMode.ConvertToER:
                     load = ConvertToER(dict);
                     break;
-                case BatchOperationMode.ChangeMaterials:
-                    load = ChangeMaterials(dict);
+                case BatchOperationMode.ChangeMaterialsByShader:
+                    load = ChangeMaterials(dict, EditFlver.GroupBy.Shader);
+                    break;
+                case BatchOperationMode.ChangeMaterialsByMTD:
+                    load = ChangeMaterials(dict, EditFlver.GroupBy.MTD);
                     break;
                 case BatchOperationMode.BulkConvertExistingMaterials:
                     load = BulkConvertMaterials(dict);

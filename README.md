@@ -21,6 +21,11 @@ ERMaterialConvertTool is built using the following licensed works:
 
 ## Changelog
 
+### 1.1.1.0
+
+* Re-added batch processing by material name (MTD) for both single and multiple FLVERs.
+* Fixed an issue where single materials could not be processed if using an unknown shader, despite the shader being irrelevant to the process in that case.
+
 ### 1.1.0.3
 
 * Fixed a critical issue with batch processing where each FLVER would only process a single material matching a certain shader, not all of them.
