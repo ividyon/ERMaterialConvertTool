@@ -1,4 +1,4 @@
 * Added a utility tool for fixing wrong tangents in FLVER meshes, addressing subtle but significant lighting errors on all custom models.
-  * Wrong tangents are present in every single custom mesh imported into ELDEN RING prior to a future FbxImporter update, unless it was directly ported over from another FromSoftware game without modifying the FLVER vertex data.
+  * Wrong tangents are present in every single custom mesh imported into ELDEN RING prior to FbxImporter v1.12.0, unless it was directly ported over from another FromSoftware game without modifying the FLVER vertex data.
   * The tool must only be run on the affected meshes (ones which were imported via external tools), not any original vanilla meshes in the FLVER, as that will break their lighting.
   * The tool works on BND and FLVER files and does not make backups.
