@@ -1,2 +1,4 @@
-* Re-added batch processing by material name (MTD) for both single and multiple FLVERs.
-* Fixed an issue where single materials could not be processed if using an unknown shader, despite the shader being irrelevant to the process in that case.
+* Added a utility tool for fixing wrong tangents in FLVER meshes, addressing subtle but significant lighting errors on all custom models.
+  * Wrong tangents are present in every single custom mesh imported into ELDEN RING prior to a future FbxImporter update, unless it was directly ported over from another FromSoftware game without modifying the FLVER vertex data.
+  * The tool must only be run on the affected meshes (ones which were imported via external tools), not any original vanilla meshes in the FLVER, as that will break their lighting.
+  * The tool works on BND and FLVER files and does not make backups.

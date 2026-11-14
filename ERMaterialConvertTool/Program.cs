@@ -18,6 +18,7 @@ class Program
         [Display(Name = "Edit single FLVER")] EditFlver,
         [Display(Name = "Batch process FLVERs")] BatchFlver,
         [Display(Name = "MATBIN utility actions")] MatbinUtility,
+        [Display(Name = "Utility: Fix mesh tangents")] FixTangents,
         [Display(Name = "Exit program")] Exit
     }
 
@@ -214,6 +215,9 @@ class Program
                     break;
                 case Mode.MatbinUtility:
                     MatbinUtility.Perform();
+                    break;
+                case Mode.FixTangents:
+                    TangentUtility.Perform();
                     break;
                 default:
                     throw new ArgumentOutOfRangeException();

@@ -4,7 +4,7 @@ using SoulsFormats;
 
 namespace ERMaterialConvertTool.Modes;
 
-public static partial class MatbinUtility
+public static class MatbinUtility
 {
     internal enum BatchFilesMode
     {
